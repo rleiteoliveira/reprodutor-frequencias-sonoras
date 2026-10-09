@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#121212">
+  <meta name="description" content="Gerador local de sinais sonoros para comandos respiratórios.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23121212'/%3E%3Cpath d='M12 32h8l6-16 12 32 6-16h8' fill='none' stroke='%23ffbf47' stroke-width='5'/%3E%3C/svg%3E">
+  <title>Guia respiratório · RM</title>
+  <style>
+    :root { color-scheme: dark; --bg:#121212; --panel:#1c1c1c; --line:#414141; --text:#f7f7f5; --muted:#c2c2bc; --amber:#ffbf47; --green:#64e69b; --ink:#121212; }
+    * { box-sizing:border-box; }
+    html { background:var(--bg); overscroll-behavior:none; }
+    body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--text); overscroll-behavior:none; }
+    button,input,select { font:inherit; }
+    button,input,select,label { touch-action:manipulation; }
+    button { border:1px solid var(--line); border-radius:12px; min-height:48px; cursor:pointer; font-weight:700; color:var(--text); background:#292929; -webkit-tap-highlight-color:transparent; }
+    button:disabled,input:disabled,select:disabled { opacity:.48; cursor:not-allowed; }
+    :focus-visible { outline:3px solid #fff; outline-offset:4px; }
+    button:not(:disabled):active { transform:translateY(1px); }
+    [hidden] { display:none !important; }
+    .app { width:min(100%,760px); margin:auto; padding:20px 16px calc(112px + env(safe-area-inset-bottom)); }
+    .eyebrow { text-transform:uppercase; color:var(--muted); font-size:.75rem; letter-spacing:.14em; font-weight:700; margin:0 0 6px; }
+    h1 { font-size:clamp(1.55rem,6vw,2rem); line-height:1.15; margin:0; letter-spacing:-.035em; }
+    .intro { margin:10px 0 20px; font-size:.9rem; color:var(--muted); line-height:1.55; }
+    .app.operating .intro { display:none; }
+    .statusbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid var(--line); padding:13px 0; font-size:.8rem; color:var(--muted); }
+    .statusbar strong { color:var(--text); font-variant-numeric:tabular-nums; }
+    .audio-status { display:flex; align-items:center; gap:7px; }
+    .dot { width:8px; height:8px; flex-shrink:0; border-radius:50%; background:#94948f; }
+    .dot.ready { background:var(--green); }
+    .tabs { display:grid; grid-template-columns:1fr 1fr; gap:6px; background:#080808; padding:5px; border:1px solid var(--line); border-radius:15px; margin-bottom:20px; }
+    .tabs button { background:transparent; border-color:transparent; }
+    .tabs button[aria-selected="true"] { background:#363636; border-color:#555; }
+    .app.operating .tabs { margin-bottom:12px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:16px; }
+    .section-title { font-size:1rem; margin:0 0 8px; }
+    .help { color:var(--muted); font-size:.85rem; line-height:1.5; margin:8px 0 0; }
+    .frequency { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:end; gap:8px; margin:20px 0; }
+    .frequency output { font-size:clamp(2.8rem,12vw,4rem); letter-spacing:-.05em; line-height:1; font-weight:750; font-variant-numeric:tabular-nums; }
+    .unit { font-size:1rem; color:var(--muted); letter-spacing:0; font-weight:500; }
+    .badge { border:1px solid #706038; border-radius:6px; padding:5px 8px; color:#ffda90; font-size:.7rem; text-align:center; }
+    input[type="range"] { width:100%; margin:0; min-height:44px; accent-color:var(--amber); cursor:pointer; }
+    #frequency { appearance:none; background:transparent; }
+    #frequency::-webkit-slider-runnable-track { height:9px; border-radius:10px; background:linear-gradient(to right,#555 0% 7.14%,var(--amber) 7.14% 35.71%,#555 35.71% 100%); }
+    #frequency::-moz-range-track { height:9px; border-radius:10px; background:linear-gradient(to right,#555 0% 7.14%,var(--amber) 7.14% 35.71%,#555 35.71% 100%); }
+    #frequency::-webkit-slider-thumb { appearance:none; width:30px; height:30px; margin-top:-10.5px; border-radius:50%; background:#fff; border:4px solid var(--ink); box-shadow:0 0 0 1px #aaa; }
+    #frequency::-moz-range-thumb { width:22px; height:22px; border-radius:50%; background:#fff; border:4px solid var(--ink); }
+    .range-labels { display:flex; justify-content:space-between; font-size:.75rem; color:var(--muted); }
+    .presets { display:grid; grid-template-columns:repeat(auto-fit,minmax(58px,1fr)); gap:8px; margin:20px 0 12px; }
+    .presets button { font-size:.85rem; }
+    .presets button[aria-pressed="true"] { color:var(--amber); border-color:var(--amber); background:#342b18; }
+    .test-button { width:100%; min-height:66px; background:#343434; border:1px solid #888; }
+    .test-button.active { color:var(--ink); background:var(--amber); }
+    .save-button { width:100%; margin-top:10px; background:var(--text); color:var(--ink); }
+    .row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 4px; }
+    .row output { color:var(--amber); font-weight:700; white-space:nowrap; }
+    .select { width:100%; min-height:50px; padding:10px; border:1px solid #777; border-radius:10px; background:#282828; color:var(--text); margin-top:8px; }
+    .check-label { display:flex; align-items:center; gap:12px; min-height:48px; font-weight:700; }
+    input[type="checkbox"] { width:24px; height:24px; accent-color:var(--amber); }
+    .timer-panel { text-align:center; padding:20px 16px 16px; }
+    .phase { margin:0; font-weight:700; font-size:.9rem; color:var(--muted); }
+    .phase.active { color:var(--amber); }
+    .phase.release { color:var(--green); }
+    .clock { display:flex; align-items:baseline; justify-content:center; gap:7px; margin:8px 0; }
+    .clock output { font-size:clamp(4rem,19vw,6.5rem); line-height:1.1; font-weight:750; letter-spacing:-.06em; font-variant-numeric:tabular-nums; }
+    .clock span { color:var(--muted); font-size:1.2rem; }
+    .timing-detail { position:relative; min-height:46px; }
+    .references { display:flex; align-items:center; justify-content:center; gap:12px; min-height:46px; font-size:.75rem; color:var(--muted); }
+    .references span { border:1px solid var(--line); border-radius:5px; padding:4px 8px; }
+    .references span.reached { color:var(--amber); border-color:var(--amber); }
+    .guide-progress { position:absolute; inset:0; }
+    progress { display:block; width:100%; height:10px; margin-top:4px; accent-color:var(--amber); }
+    .command { width:100%; min-height:132px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:20px 12px; border:3px solid transparent; border-radius:16px; color:var(--ink); user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+    .command strong { font-size:clamp(1.35rem,5.6vw,1.8rem); line-height:1.15; }
+    .command small { font-size:.85rem; font-weight:600; }
+    .hold { background:var(--amber); margin-bottom:12px; }
+    .release-button { background:var(--green); }
+    .command.active { border-color:#fff; box-shadow:inset 0 0 0 3px var(--ink); }
+    .mode-note { text-align:center; margin:12px 0 20px; }
+    .operation-config { margin-top:20px; }
+    .notice { border-left:3px solid #777; padding-left:12px; }
+    .stopbar { position:fixed; bottom:0; left:0; right:0; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:#121212; z-index:10; }
+    .stopbar button { display:block; width:min(100%,728px); margin:auto; min-height:54px; border:1px solid #ddd; background:#242424; font-size:1rem; }
+    .stopbar button span { margin-right:8px; }
+    .feedback { min-height:1.5em; font-size:.85rem; line-height:1.5; color:var(--muted); margin:12px 0; }
+    .feedback.error { color:#ffb9b9; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    @media (min-width:600px) { .app { padding-top:32px; } .panel { padding:24px; } .command { min-height:150px; } }
+    @media (max-width:420px) { .timer-panel { padding:12px; } .clock output { font-size:4rem; } .timer-panel > .help { display:none; } }
+    @media (prefers-reduced-motion:reduce) { button:not(:disabled):active { transform:none; } }
+  </style>
+</head>
+<body>
+  <!-- Servir esta pasta com um servidor estático (por exemplo, python -m http.server 8080).
+       No VS Code, encaminhar a porta 8080 e abrir a URL no celular. Nada é carregado de CDNs.
+       A página funciona sem rede após carregada; recarregá-la exige acesso ao arquivo/servidor. -->
+  <main class="app">
+    <header>
+      <p class="eyebrow">Comandos sonoros · Ressonância</p>
+      <h1>Guia respiratório</h1>
+      <p class="intro">Ajuste o sinal. Confirme que a paciente distingue os comandos pelo interfone antes do exame.</p>
+    </header>
+    <div class="statusbar">
+      <span>Base <strong id="base-display">220 Hz</strong></span>
+      <span class="audio-status"><span class="dot" id="audio-dot" aria-hidden="true"></span><span id="audio-status">Áudio não iniciado</span></span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Modo do aplicativo">
+      <button id="tab-adjust" role="tab" aria-selected="true" aria-controls="adjust" tabindex="0">1. Ajuste</button>
+      <button id="tab-operate" role="tab" aria-selected="false" aria-controls="operate" tabindex="-1">2. Operação</button>
+    </nav>
+
+    <section id="adjust" role="tabpanel" aria-labelledby="tab-adjust">
+      <div class="panel">
+        <h2 class="section-title"><label for="frequency">Encontrar a frequência</label></h2>
+        <p class="help">Segure “Testar som” e confirme a percepção. A faixa destacada é de 150 a 350 Hz.</p>
+        <div class="frequency"><div><output id="frequency-display" for="frequency">220</output><span class="unit"> Hz</span></div><span class="badge">150–350 Hz<br>faixa em destaque</span></div>
+        <input id="frequency" data-config type="range" min="100" max="800" step="1" value="220" aria-valuetext="220 hertz">
+        <div class="range-labels" aria-hidden="true"><span>100 Hz</span><span>800 Hz</span></div>
+        <div class="presets" role="group" aria-label="Frequências rápidas">
+          <button data-config data-frequency="180" aria-pressed="false">180 Hz</button>
+          <button data-config data-frequency="220" aria-pressed="true">220 Hz</button>
+          <button data-config data-frequency="300" aria-pressed="false">300 Hz</button>
+          <button data-config data-frequency="400" aria-pressed="false">400 Hz</button>
+        </div>
+        <button id="test" class="test-button" aria-describedby="test-help">Testar som · segure</button>
+        <p id="test-help" class="help">Solte para silenciar. No teclado, mantenha Espaço ou Enter pressionado.</p>
+        <button id="save" data-config class="save-button">Salvar frequência base</button>
+        <p id="save-status" class="help">Base atual: 220 Hz. Salve após confirmar a percepção.</p>
+      </div>
+      <div class="panel">
+        <div class="row"><label for="volume"><strong>Volume do aplicativo</strong></label><output id="volume-display" for="volume">30%</output></div>
+        <input id="volume" data-config type="range" min="0" max="100" step="1" value="30" aria-valuetext="30 por cento">
+        <p class="help">Comece baixo e ajuste também o volume do celular. Esta porcentagem não mede a pressão sonora.</p>
+      </div>
+    </section>
+
+    <section id="operate" role="tabpanel" aria-labelledby="tab-operate" hidden>
+      <div class="panel timer-panel">
+        <p id="phase" class="phase">Parado</p>
+        <div class="clock" aria-label="Tempo de sustentação"><output id="timer" role="timer" aria-live="off" aria-label="Segundos de sustentação">0.0</output><span>s</span></div>
+        <div class="timing-detail">
+          <div id="references" class="references" aria-label="Referências visuais de tempo"><span id="ref10">10 s</span><span id="ref15">15 s</span></div>
+          <div id="guide-progress" class="guide-progress" hidden><span id="guide-text" class="help">Inspirando</span><progress id="inspiration-progress" max="3" value="0" aria-label="Progresso da inspiração"></progress></div>
+        </div>
+        <p class="help">Contagem da sustentação. O encerramento é manual.</p>
+      </div>
+      <button id="hold" class="command hold" aria-describedby="mode-note"><strong>PUXAR E SEGURAR</strong><small id="hold-hint">Mantenha pressionado para tocar</small></button>
+      <button id="release" class="command release-button"><strong>SOLTAR / RESPIRAR</strong><small>Bip-bip · sinal de liberação</small></button>
+      <p id="mode-note" class="help mode-note">Soltar o botão âmbar apenas silencia. Use o verde para sinalizar a liberação.</p>
+      <div class="panel operation-config">
+        <h2 class="section-title">Disparo e inspiração</h2>
+        <label for="trigger">Modo do botão âmbar</label>
+        <select id="trigger" data-config class="select"><option value="hold">Manter pressionado</option><option value="toggle">Alternar / Travar</option></select>
+        <div class="row"><label class="check-label" for="guide"><input id="guide" data-config type="checkbox">Guia de inspiração</label></div>
+        <p class="help">O volume sobe até o tom contínuo. O cronômetro começa depois da inspiração.</p>
+        <div id="duration-controls" hidden>
+          <div class="row"><label for="duration">Duração da subida</label><output id="duration-display" for="duration">3 s</output></div>
+          <input id="duration" data-config type="range" min="1" max="6" step="1" value="3" aria-valuetext="3 segundos">
+        </div>
+      </div>
+      <p class="help notice">Os sinais e os tempos devem seguir a orientação da equipe. Confirme a percepção dos dois sinais pela paciente; a frequência de liberação é 1,4 × a base.</p>
+    </section>
+    <p id="feedback" class="feedback" role="status" aria-live="polite" aria-atomic="true">Pronto para ajustar. O som só começa com sua ação.</p>
+    <span id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
+    <noscript>Ative o JavaScript para usar os comandos sonoros.</noscript>
+  </main>
+  <footer class="stopbar"><button id="stop"><span aria-hidden="true">■</span>Parar som <span class="sr-only">(Escape no teclado)</span></button></footer>
+
+  <script>
+  (() => {
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const ui = Object.fromEntries(['frequency','volume','trigger','guide','duration','test','hold','release','save','stop','phase','timer','feedback'].map(id => [id,$(id)]));
+    const STORAGE_KEY = 'rm-tone-base-v1';
+    const ATTACK = .03, FADE = .05, MASTER_MAX = .7;
+    let base = 220, draft = 220, audioCtx = null, master = null;
+    let generation = 0, command = null, voice = null, frame = 0, elapsed = 0;
+    let gesture = null, suppressClickUntil = 0, ignoreMouseUntil = 0;
+    const voices = new Set();
+
+    // Somente a frequência confirmada é persistida. Estados de reprodução nunca são restaurados.
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const value = Number(stored);
+      if (stored !== null && Number.isInteger(value) && value >= 100 && value <= 800) base = draft = value;
+    } catch (_) { /* Armazenamento privado/bloqueado: continuar em memória. */ }
+    ui.frequency.value = draft;
+    function feedback(message, error = false) { ui.feedback.textContent = message; ui.feedback.classList.toggle('error',error); }
+    function updateDraft() {
+      draft = Number(ui.frequency.value);
+      $('frequency-display').textContent = draft;
+      ui.frequency.setAttribute('aria-valuetext',`${draft} hertz`);
+      document.querySelectorAll('[data-frequency]').forEach(button => button.setAttribute('aria-pressed',String(Number(button.dataset.frequency) === draft)));
+      $('base-display').textContent = `${base} Hz`;
+      $('save-status').textContent = `Base atual: ${base} Hz. ${draft === base ? 'Salve após confirmar a percepção.' : 'A seleção ainda não foi salva.'}`;
+    }
+    function setPhase(text, kind = '') {
+      if (ui.phase.textContent !== text) $('announcer').textContent = text;
+      ui.phase.textContent = text;
+      ui.phase.className = `phase ${kind}`;
+    }
+    function audioStatus() {
+      const ready = audioCtx && audioCtx.state === 'running';
+      $('audio-dot').classList.toggle('ready',Boolean(ready));
+      $('audio-status').textContent = !audioCtx ? 'Áudio não iniciado' : ready ? 'Áudio pronto' : 'Áudio pausado';
+    }
+    function renderControls() {
+      const busy = Boolean(command);
+      document.querySelectorAll('[data-config]').forEach(input => input.disabled = busy);
+      ui.test.disabled = busy && command.kind !== 'test';
+      ui.test.classList.toggle('active',Boolean(command && command.kind === 'test' && voice));
+      ui.hold.classList.toggle('active',Boolean(command && command.kind === 'hold'));
+      ui.release.classList.toggle('active',Boolean(command && command.kind === 'release'));
+      if (ui.trigger.value === 'toggle') ui.hold.setAttribute('aria-pressed',String(Boolean(command && command.kind === 'hold')));
+      else ui.hold.removeAttribute('aria-pressed');
+      ui.hold.setAttribute('aria-busy',String(Boolean(command && command.kind === 'hold' && !voice)));
+      $('hold-hint').textContent = ui.trigger.value === 'toggle' ? (command && command.kind === 'hold' ? 'Toque para silenciar' : 'Toque para travar o tom') : 'Mantenha pressionado para tocar';
+      $('duration-controls').hidden = !ui.guide.checked;
+    }
+
+    // Um único contexto. resume() acontece dentro do gesto; a geração invalida ações
+    // pendentes caso o dedo seja solto antes de o navegador concluir o desbloqueio.
+    async function ensureAudio() {
+      if (!audioCtx) {
+        const Context = window.AudioContext || window.webkitAudioContext;
+        if (!Context) throw new Error('Este navegador não oferece Web Audio. Abra em um navegador compatível.');
+        audioCtx = new Context();
+        master = audioCtx.createGain();
+        master.gain.value = MASTER_MAX * Number(ui.volume.value) / 100;
+        master.connect(audioCtx.destination);
+        audioCtx.addEventListener('statechange',() => {
+          audioStatus();
+          if (command && voice && audioCtx.state !== 'running') stopSound('Áudio interrompido. Acione novamente para retomar.',true);
+        });
+      }
+      if (audioCtx.state !== 'running') await audioCtx.resume();
+      if (audioCtx.state !== 'running') throw new Error('Não foi possível iniciar o áudio. Tente tocar novamente.');
+      audioStatus();
+    }
+
+    // Valor exato do envelope para cancelar rampas suavemente mesmo em navegadores
+    // sem cancelAndHoldAtTime(). Cada segmento usa o relógio do AudioContext.
+    function envelopeAt(v, time) {
+      for (const segment of v.segments) {
+        if (time < segment.start) return 0;
+        if (time <= segment.end) return segment.from + (segment.to - segment.from) * ((time - segment.start) / (segment.end - segment.start));
+      }
+      return v.tail;
+    }
+    function dispose(v) {
+      if (v.disposed) return;
+      v.disposed = true;
+      v.osc.disconnect(); v.gain.disconnect(); voices.delete(v);
+    }
+    function retire(v, immediate = false) {
+      if (v.disposed) return;
+      if (v.retired && !immediate) return;
+      const now = audioCtx.currentTime;
+      const gain = v.gain.gain;
+      const current = envelopeAt(v,now);
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(immediate ? 0 : current,now);
+      if (!immediate) gain.linearRampToValueAtTime(0,now + FADE);
+      // Substitui também uma parada previamente agendada, cancelando o restante do bip-bip.
+      v.osc.stop(now + (immediate ? 0 : FADE));
+      v.retired = true;
+      if (immediate) dispose(v);
+    }
+    function updateTimer() {
+      if (command && command.kind === 'hold' && voice) elapsed = Math.max(0,audioCtx.currentTime - command.holdStart);
+      ui.timer.textContent = elapsed.toFixed(1);
+      $('ref10').classList.toggle('reached',elapsed >= 10);
+      $('ref15').classList.toggle('reached',elapsed >= 15);
+    }
+    function clearGesture() {
+      const previous = gesture;
+      gesture = null;
+      if (previous && previous.source === 'pointer' && previous.button.hasPointerCapture(previous.id)) previous.button.releasePointerCapture(previous.id);
+    }
+    function stopSound(message, immediate = false) {
+      updateTimer();
+      generation++;
+      command = null; voice = null;
+      cancelAnimationFrame(frame); frame = 0;
+      for (const v of [...voices]) retire(v,immediate);
+      clearGesture();
+      $('guide-progress').hidden = true;
+      $('references').hidden = false;
+      setPhase('Parado'); renderControls(); audioStatus();
+      if (message) feedback(message);
+    }
+    function tick() {
+      if (!command || !voice) return;
+      if (command.kind === 'hold') {
+        const now = audioCtx.currentTime;
+        const inspiring = command.guideSeconds > 0 && now < command.holdStart;
+        setPhase(inspiring ? 'Inspirando' : 'Sustentando','active');
+        $('guide-progress').hidden = !inspiring;
+        $('references').hidden = inspiring;
+        if (inspiring) {
+          const progress = Math.max(0,now - command.start);
+          $('inspiration-progress').value = progress;
+          $('guide-text').textContent = `Inspiração · ${progress.toFixed(1)} / ${command.guideSeconds} s`;
+        }
+        updateTimer();
+      }
+      frame = requestAnimationFrame(tick);
+    }
+    async function startSound(kind, assistiveTest = false) {
+      // Encerra o anterior antes de iniciar outro; o verde pode preemptar qualquer comando.
+      const hadVoice = voices.size > 0;
+      stopSound();
+      const token = generation;
+      const guideSeconds = kind === 'hold' && ui.guide.checked ? Number(ui.duration.value) : 0;
+      command = { kind, token, guideSeconds, start:0, holdStart:Infinity };
+      renderControls(); feedback('Preparando áudio…');
+      try {
+        await ensureAudio();
+        if (token !== generation || !command) return;
+        if (document.hidden || !document.hasFocus()) { stopSound('Página inativa. Acione novamente para retomar.',true); return; }
+        const start = audioCtx.currentTime + (hadVoice ? FADE + .01 : .005);
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(kind === 'test' ? draft : base * (kind === 'release' ? 1.4 : 1),start);
+        gain.gain.setValueAtTime(0,audioCtx.currentTime);
+        osc.connect(gain); gain.connect(master);
+        const v = { osc, gain, segments:[], tail:1, disposed:false, retired:false };
+        function ramp(from,to,a,b) {
+          gain.gain.setValueAtTime(from,a); gain.gain.linearRampToValueAtTime(to,b);
+          v.segments.push({ start:a,end:b,from,to });
+        }
+        let end = null;
+        if (kind === 'release') {
+          // Dois pulsos: 250 ms cada; pausa silenciosa de 180 ms. Inclui ataque/saída.
+          for (const offset of [0,.43]) {
+            const t = start + offset;
+            ramp(0,1,t,t + ATTACK);
+            ramp(1,1,t + ATTACK,t + .20);
+            ramp(1,0,t + .20,t + .25);
+          }
+          end = start + .68; v.tail = 0;
+        } else if (guideSeconds > 0) {
+          ramp(0,.15,start,start + ATTACK);
+          ramp(.15,1,start + ATTACK,start + guideSeconds);
+        } else {
+          ramp(0,1,start,start + ATTACK);
+        }
+        if (assistiveTest && kind !== 'release') {
+          const plateau = start + (guideSeconds || ATTACK);
+          ramp(1,1,plateau,start + guideSeconds + .95);
+          ramp(1,0,start + guideSeconds + .95,start + guideSeconds + 1);
+          end = start + guideSeconds + 1; v.tail = 0;
+        }
+        osc.onended = () => {
+          dispose(v);
+          if (command && command.token === token && voice === v && !v.retired) stopSound(kind === 'release' ? 'Sinal de liberação concluído.' : 'Teste concluído.');
+        };
+        voices.add(v); voice = v;
+        command.start = start; command.holdStart = start + guideSeconds;
+        osc.start(start);
+        if (end !== null) osc.stop(end);
+        if (kind === 'hold') { elapsed = 0; updateTimer(); }
+        setPhase(kind === 'test' ? 'Testando' : kind === 'release' ? 'Liberando' : guideSeconds ? 'Inspirando' : 'Sustentando',kind === 'release' ? 'release' : 'active');
+        $('inspiration-progress').max = guideSeconds || 1;
+        renderControls(); tick();
+        feedback(kind === 'release' ? `Bip-bip de liberação · ${(base * 1.4).toFixed(0)} Hz.` : kind === 'test' ? `Teste · ${draft} Hz. Solte para silenciar.` : 'Comando ativo. O botão verde sinaliza a liberação.');
+      } catch (error) {
+        if (token === generation) { stopSound(); feedback(error.message || 'Falha ao iniciar áudio. Tente novamente.',true); }
+      }
+    }
+
+    // Ponteiro e teclado compartilham uma única posse do gesto. Não ligamos ambos
+    // os sistemas touch/mouse se Pointer Events existir: isso evita eventos duplicados.
+    function press(button, source, id) {
+      if (button.disabled) return;
+      if (button === ui.release) { clearGesture(); startSound('release'); return; }
+      if (gesture) return; // Ignorar dedos/teclas adicionais, sem sobrepor osciladores.
+      const kind = button === ui.test ? 'test' : 'hold';
+      if (kind === 'hold' && ui.trigger.value === 'toggle' && command && command.kind === 'hold') {
+        stopSound('Tom encerrado. Use o verde para sinalizar a liberação.');
+        gesture = { button,source,id,momentary:false }; return;
+      }
+      startSound(kind);
+      gesture = { button,source,id,momentary:kind === 'test' || ui.trigger.value === 'hold' };
+    }
+    function endGesture(source,id,cancelled = false) {
+      if (!gesture || gesture.source !== source || gesture.id !== id) return;
+      const previous = gesture;
+      clearGesture();
+      if (previous.momentary || cancelled) stopSound(cancelled ? 'Gesto interrompido. Som encerrado.' : 'Tom encerrado.');
+    }
+    const commandButtons = [ui.test,ui.hold,ui.release];
+    if ('PointerEvent' in window) {
+      commandButtons.forEach(button => {
+        button.addEventListener('pointerdown',event => {
+          if (event.button !== 0 || (!event.isPrimary && button !== ui.release)) return;
+          event.preventDefault(); button.focus({preventScroll:true});
+          press(button,'pointer',event.pointerId);
+          if (gesture && gesture.button === button && gesture.id === event.pointerId) button.setPointerCapture(event.pointerId);
+        });
+        button.addEventListener('lostpointercapture',event => endGesture('pointer',event.pointerId,true));
+        button.addEventListener('contextmenu',event => event.preventDefault());
+      });
+      window.addEventListener('pointerup',event => endGesture('pointer',event.pointerId));
+      window.addEventListener('pointercancel',event => endGesture('pointer',event.pointerId,true));
+    } else {
+      commandButtons.forEach(button => {
+        button.addEventListener('touchstart',event => {
+          event.preventDefault(); ignoreMouseUntil = performance.now() + 1000;
+          if (event.touches.length !== 1 && button !== ui.release) return;
+          press(button,'touch',event.changedTouches[0].identifier);
+        },{passive:false});
+        button.addEventListener('mousedown',event => {
+          if (event.button !== 0 || performance.now() < ignoreMouseUntil) return;
+          event.preventDefault(); button.focus({preventScroll:true}); press(button,'mouse',0);
+        });
+        button.addEventListener('contextmenu',event => event.preventDefault());
+      });
+      for (const type of ['touchend','touchcancel']) window.addEventListener(type,event => {
+        ignoreMouseUntil = performance.now() + 1000;
+        for (const touch of event.changedTouches) endGesture('touch',touch.identifier,type === 'touchcancel');
+      });
+      window.addEventListener('mouseup',() => endGesture('mouse',0));
+    }
+    commandButtons.forEach(button => {
+      button.addEventListener('blur',() => {
+        if (gesture && gesture.button === button) endGesture(gesture.source,gesture.id,true);
+      });
+      button.addEventListener('keydown',event => {
+        if (event.key !== ' ' && event.key !== 'Enter') return;
+        event.preventDefault();
+        if (!event.repeat) { suppressClickUntil = performance.now() + 500; press(button,'key',event.key); }
+      });
+      button.addEventListener('click',event => {
+        // Tecnologias assistivas podem ativar por click sem pointerdown/keydown.
+        // Para teste/modo momentâneo, esse caminho produz um teste de 1 s.
+        if (event.detail !== 0 || performance.now() < suppressClickUntil || button.disabled) return;
+        if (button === ui.release) startSound('release');
+        else if (button === ui.hold && ui.trigger.value === 'toggle') {
+          if (command && command.kind === 'hold') stopSound('Tom encerrado.'); else startSound('hold');
+        } else startSound(button === ui.test ? 'test' : 'hold',true);
+      });
+    });
+    window.addEventListener('keyup',event => {
+      if (event.key === ' ' || event.key === 'Enter') { suppressClickUntil = performance.now() + 500; endGesture('key',event.key); }
+    });
+    window.addEventListener('keydown',event => { if (event.key === 'Escape') stopSound('Som encerrado.'); });
+    ui.stop.addEventListener('click',() => stopSound('Som encerrado.'));
+    window.addEventListener('blur',() => stopSound('Página sem foco. Acione novamente para retomar.',true));
+    window.addEventListener('pagehide',() => stopSound(undefined,true));
+    document.addEventListener('visibilitychange',() => { if (document.hidden) stopSound('Página ocultada. Acione novamente para retomar.',true); });
+
+    function selectTab(tab) {
+      stopSound('Som encerrado ao trocar de aba.');
+      document.querySelector('.app').classList.toggle('operating',tab === $('tab-operate'));
+      for (const button of [$('tab-adjust'),$('tab-operate')]) {
+        const selected = button === tab;
+        button.setAttribute('aria-selected',String(selected)); button.tabIndex = selected ? 0 : -1;
+        $(button.getAttribute('aria-controls')).hidden = !selected;
+      }
+    }
+    [$('tab-adjust'),$('tab-operate')].forEach(tab => {
+      tab.addEventListener('click',() => selectTab(tab));
+      tab.addEventListener('keydown',event => {
+        if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+        event.preventDefault();
+        const target = event.key === 'Home' ? $('tab-adjust') : event.key === 'End' ? $('tab-operate') : tab === $('tab-adjust') ? $('tab-operate') : $('tab-adjust');
+        selectTab(target); target.focus();
+      });
+    });
+    ui.frequency.addEventListener('input',updateDraft);
+    document.querySelectorAll('[data-frequency]').forEach(button => button.addEventListener('click',() => { ui.frequency.value = button.dataset.frequency; updateDraft(); }));
+    ui.save.addEventListener('click',() => {
+      base = draft; updateDraft();
+      try { localStorage.setItem(STORAGE_KEY,String(base)); feedback(`Frequência base salva: ${base} Hz.`); }
+      catch (_) { feedback(`Base definida em ${base} Hz nesta sessão. O navegador não permitiu salvar para a próxima visita.`); }
+    });
+    ui.volume.addEventListener('input',() => {
+      $('volume-display').textContent = `${ui.volume.value}%`;
+      ui.volume.setAttribute('aria-valuetext',`${ui.volume.value} por cento`);
+      if (master) master.gain.setTargetAtTime(MASTER_MAX * Number(ui.volume.value) / 100,audioCtx.currentTime,.02);
+    });
+    ui.duration.addEventListener('input',() => {
+      $('duration-display').textContent = `${ui.duration.value} s`;
+      ui.duration.setAttribute('aria-valuetext',`${ui.duration.value} segundos`);
+    });
+    ui.trigger.addEventListener('change',renderControls);
+    ui.guide.addEventListener('change',renderControls);
+    updateDraft(); renderControls(); updateTimer();
+  })();
+  </script>
+</body>
+</html>

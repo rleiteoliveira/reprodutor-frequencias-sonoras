@@ -1,0 +1,6 @@
+# Artefatos locais de verificação e configuração do editor.
+output/
+.playwright-cli/
+.vscode/
+Thumbs.db
+.DS_Store
