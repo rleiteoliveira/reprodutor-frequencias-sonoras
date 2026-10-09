@@ -12,10 +12,10 @@
     * { box-sizing:border-box; }
     html { background:var(--bg); overscroll-behavior:none; }
     body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--text); overscroll-behavior:none; }
-    button,input,select { font:inherit; }
-    button,input,select,label { touch-action:manipulation; }
+    button,input { font:inherit; }
+    button,input,label { touch-action:manipulation; }
     button { border:1px solid var(--line); border-radius:12px; min-height:48px; cursor:pointer; font-weight:700; color:var(--text); background:#292929; -webkit-tap-highlight-color:transparent; }
-    button:disabled,input:disabled,select:disabled { opacity:.48; cursor:not-allowed; }
+    button:disabled,input:disabled { opacity:.48; cursor:not-allowed; }
     :focus-visible { outline:3px solid #fff; outline-offset:4px; }
     button:not(:disabled):active { transform:translateY(1px); }
     [hidden] { display:none !important; }
@@ -55,7 +55,6 @@
     .save-button { width:100%; margin-top:10px; background:var(--text); color:var(--ink); }
     .row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 4px; }
     .row output { color:var(--amber); font-weight:700; white-space:nowrap; }
-    .select { width:100%; min-height:50px; padding:10px; border:1px solid #777; border-radius:10px; background:#282828; color:var(--text); margin-top:8px; }
     .check-label { display:flex; align-items:center; gap:12px; min-height:48px; font-weight:700; }
     input[type="checkbox"] { width:24px; height:24px; accent-color:var(--amber); }
     .timer-panel { text-align:center; padding:20px 16px 16px; }
@@ -113,7 +112,7 @@
     <section id="adjust" role="tabpanel" aria-labelledby="tab-adjust">
       <div class="panel">
         <h2 class="section-title"><label for="frequency">Encontrar a frequência</label></h2>
-        <p class="help">Segure “Testar som” e confirme a percepção. A faixa destacada é de 150 a 350 Hz.</p>
+        <p class="help">Toque em “Testar som” e confirme a percepção. A faixa destacada é de 150 a 350 Hz.</p>
         <div class="frequency"><div><output id="frequency-display" for="frequency">220</output><span class="unit"> Hz</span></div><span class="badge">150–350 Hz<br>faixa em destaque</span></div>
         <input id="frequency" data-config type="range" min="100" max="800" step="1" value="220" aria-valuetext="220 hertz">
         <div class="range-labels" aria-hidden="true"><span>100 Hz</span><span>800 Hz</span></div>
@@ -123,8 +122,8 @@
           <button data-config data-frequency="300" aria-pressed="false">300 Hz</button>
           <button data-config data-frequency="400" aria-pressed="false">400 Hz</button>
         </div>
-        <button id="test" class="test-button" aria-describedby="test-help">Testar som · segure</button>
-        <p id="test-help" class="help">Solte para silenciar. No teclado, mantenha Espaço ou Enter pressionado.</p>
+        <button id="test" class="test-button" aria-pressed="false" aria-describedby="test-help">Testar som</button>
+        <p id="test-help" class="help">Um toque inicia o tom contínuo. Toque novamente para parar.</p>
         <button id="save" data-config class="save-button">Salvar frequência base</button>
         <p id="save-status" class="help">Base atual: 220 Hz. Salve após confirmar a percepção.</p>
       </div>
@@ -145,13 +144,11 @@
         </div>
         <p class="help">Contagem da sustentação. O encerramento é manual.</p>
       </div>
-      <button id="hold" class="command hold" aria-describedby="mode-note"><strong>PUXAR E SEGURAR</strong><small id="hold-hint">Mantenha pressionado para tocar</small></button>
+      <button id="hold" class="command hold" aria-pressed="false" aria-describedby="mode-note"><strong>PUXAR E SEGURAR</strong><small id="hold-hint">Toque para iniciar o tom contínuo</small></button>
       <button id="release" class="command release-button"><strong>SOLTAR / RESPIRAR</strong><small>Bip-bip · sinal de liberação</small></button>
-      <p id="mode-note" class="help mode-note">Soltar o botão âmbar apenas silencia. Use o verde para sinalizar a liberação.</p>
+      <p id="mode-note" class="help mode-note">Toque novamente no âmbar para silenciar. Use o verde para sinalizar a liberação.</p>
       <div class="panel operation-config">
-        <h2 class="section-title">Disparo e inspiração</h2>
-        <label for="trigger">Modo do botão âmbar</label>
-        <select id="trigger" data-config class="select"><option value="hold">Manter pressionado</option><option value="toggle">Alternar / Travar</option></select>
+        <h2 class="section-title">Inspiração</h2>
         <div class="row"><label class="check-label" for="guide"><input id="guide" data-config type="checkbox">Guia de inspiração</label></div>
         <p class="help">O volume sobe até o tom contínuo. O cronômetro começa depois da inspiração.</p>
         <div id="duration-controls" hidden>
@@ -171,12 +168,11 @@
   (() => {
     'use strict';
     const $ = id => document.getElementById(id);
-    const ui = Object.fromEntries(['frequency','volume','trigger','guide','duration','test','hold','release','save','stop','phase','timer','feedback'].map(id => [id,$(id)]));
+    const ui = Object.fromEntries(['frequency','volume','guide','duration','test','hold','release','save','stop','phase','timer','feedback'].map(id => [id,$(id)]));
     const STORAGE_KEY = 'rm-tone-base-v1';
     const ATTACK = .03, FADE = .05, MASTER_MAX = .7;
     let base = 220, draft = 220, audioCtx = null, master = null;
     let generation = 0, command = null, voice = null, frame = 0, elapsed = 0;
-    let gesture = null, suppressClickUntil = 0, ignoreMouseUntil = 0;
     const voices = new Set();
 
     // Somente a frequência confirmada é persistida. Estados de reprodução nunca são restaurados.
@@ -209,19 +205,25 @@
       const busy = Boolean(command);
       document.querySelectorAll('[data-config]').forEach(input => input.disabled = busy);
       ui.test.disabled = busy && command.kind !== 'test';
-      ui.test.classList.toggle('active',Boolean(command && command.kind === 'test' && voice));
+      const testing = Boolean(command && command.kind === 'test');
+      const holding = Boolean(command && command.kind === 'hold');
+      ui.test.classList.toggle('active',testing);
+      ui.test.setAttribute('aria-pressed',String(testing));
+      ui.test.textContent = testing ? 'Parar teste' : 'Testar som';
       ui.hold.classList.toggle('active',Boolean(command && command.kind === 'hold'));
       ui.release.classList.toggle('active',Boolean(command && command.kind === 'release'));
-      if (ui.trigger.value === 'toggle') ui.hold.setAttribute('aria-pressed',String(Boolean(command && command.kind === 'hold')));
-      else ui.hold.removeAttribute('aria-pressed');
+      ui.hold.setAttribute('aria-pressed',String(holding));
       ui.hold.setAttribute('aria-busy',String(Boolean(command && command.kind === 'hold' && !voice)));
-      $('hold-hint').textContent = ui.trigger.value === 'toggle' ? (command && command.kind === 'hold' ? 'Toque para silenciar' : 'Toque para travar o tom') : 'Mantenha pressionado para tocar';
+      $('hold-hint').textContent = holding ? 'Toque novamente para silenciar' : 'Toque para iniciar o tom contínuo';
       $('duration-controls').hidden = !ui.guide.checked;
     }
 
-    // Um único contexto. resume() acontece dentro do gesto; a geração invalida ações
-    // pendentes caso o dedo seja solto antes de o navegador concluir o desbloqueio.
+    // Um único contexto. O click ocorre após o toque terminar, com ativação do usuário
+    // no Safari. A geração invalida inícios pendentes quando outro clique encerra o som.
     async function ensureAudio() {
+      // Quando disponível, usar a sessão de mídia do iOS, inclusive no modo silencioso.
+      // A API é opcional: uma falha nesta preferência não impede o Web Audio padrão.
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (_) { /* API opcional. */ }
       if (!audioCtx) {
         const Context = window.AudioContext || window.webkitAudioContext;
         if (!Context) throw new Error('Este navegador não oferece Web Audio. Abra em um navegador compatível.');
@@ -273,18 +275,12 @@
       $('ref10').classList.toggle('reached',elapsed >= 10);
       $('ref15').classList.toggle('reached',elapsed >= 15);
     }
-    function clearGesture() {
-      const previous = gesture;
-      gesture = null;
-      if (previous && previous.source === 'pointer' && previous.button.hasPointerCapture(previous.id)) previous.button.releasePointerCapture(previous.id);
-    }
     function stopSound(message, immediate = false) {
       updateTimer();
       generation++;
       command = null; voice = null;
       cancelAnimationFrame(frame); frame = 0;
       for (const v of [...voices]) retire(v,immediate);
-      clearGesture();
       $('guide-progress').hidden = true;
       $('references').hidden = false;
       setPhase('Parado'); renderControls(); audioStatus();
@@ -307,7 +303,7 @@
       }
       frame = requestAnimationFrame(tick);
     }
-    async function startSound(kind, assistiveTest = false) {
+    async function startSound(kind) {
       // Encerra o anterior antes de iniciar outro; o verde pode preemptar qualquer comando.
       const hadVoice = voices.size > 0;
       stopSound();
@@ -318,7 +314,7 @@
       try {
         await ensureAudio();
         if (token !== generation || !command) return;
-        if (document.hidden || !document.hasFocus()) { stopSound('Página inativa. Acione novamente para retomar.',true); return; }
+        if (document.hidden) { stopSound('Página inativa. Acione novamente para retomar.',true); return; }
         const start = audioCtx.currentTime + (hadVoice ? FADE + .01 : .005);
         const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
         osc.type = 'triangle';
@@ -346,12 +342,6 @@
         } else {
           ramp(0,1,start,start + ATTACK);
         }
-        if (assistiveTest && kind !== 'release') {
-          const plateau = start + (guideSeconds || ATTACK);
-          ramp(1,1,plateau,start + guideSeconds + .95);
-          ramp(1,0,start + guideSeconds + .95,start + guideSeconds + 1);
-          end = start + guideSeconds + 1; v.tail = 0;
-        }
         osc.onended = () => {
           dispose(v);
           if (command && command.token === token && voice === v && !v.retired) stopSound(kind === 'release' ? 'Sinal de liberação concluído.' : 'Teste concluído.');
@@ -364,86 +354,27 @@
         setPhase(kind === 'test' ? 'Testando' : kind === 'release' ? 'Liberando' : guideSeconds ? 'Inspirando' : 'Sustentando',kind === 'release' ? 'release' : 'active');
         $('inspiration-progress').max = guideSeconds || 1;
         renderControls(); tick();
-        feedback(kind === 'release' ? `Bip-bip de liberação · ${(base * 1.4).toFixed(0)} Hz.` : kind === 'test' ? `Teste · ${draft} Hz. Solte para silenciar.` : 'Comando ativo. O botão verde sinaliza a liberação.');
+        feedback(kind === 'release' ? `Bip-bip de liberação · ${(base * 1.4).toFixed(0)} Hz.` : kind === 'test' ? `Teste · ${draft} Hz. Toque novamente para silenciar.` : 'Comando ativo. Toque novamente no âmbar para silenciar ou no verde para liberar.');
       } catch (error) {
         if (token === generation) { stopSound(); feedback(error.message || 'Falha ao iniciar áudio. Tente novamente.',true); }
       }
     }
 
-    // Ponteiro e teclado compartilham uma única posse do gesto. Não ligamos ambos
-    // os sistemas touch/mouse se Pointer Events existir: isso evita eventos duplicados.
-    function press(button, source, id) {
-      if (button.disabled) return;
-      if (button === ui.release) { clearGesture(); startSound('release'); return; }
-      if (gesture) return; // Ignorar dedos/teclas adicionais, sem sobrepor osciladores.
-      const kind = button === ui.test ? 'test' : 'hold';
-      if (kind === 'hold' && ui.trigger.value === 'toggle' && command && command.kind === 'hold') {
-        stopSound('Tom encerrado. Use o verde para sinalizar a liberação.');
-        gesture = { button,source,id,momentary:false }; return;
-      }
-      startSound(kind);
-      gesture = { button,source,id,momentary:kind === 'test' || ui.trigger.value === 'hold' };
+    // Click nativo atende mouse, toque, teclado e tecnologias assistivas sem
+    // duplicar o comando em pointerdown/touchstart. Soltar o dedo não encerra o tom.
+    function toggleSound(kind) {
+      if (command && command.kind === kind) stopSound('Tom encerrado.');
+      else startSound(kind);
     }
-    function endGesture(source,id,cancelled = false) {
-      if (!gesture || gesture.source !== source || gesture.id !== id) return;
-      const previous = gesture;
-      clearGesture();
-      if (previous.momentary || cancelled) stopSound(cancelled ? 'Gesto interrompido. Som encerrado.' : 'Tom encerrado.');
-    }
-    const commandButtons = [ui.test,ui.hold,ui.release];
-    if ('PointerEvent' in window) {
-      commandButtons.forEach(button => {
-        button.addEventListener('pointerdown',event => {
-          if (event.button !== 0 || (!event.isPrimary && button !== ui.release)) return;
-          event.preventDefault(); button.focus({preventScroll:true});
-          press(button,'pointer',event.pointerId);
-          if (gesture && gesture.button === button && gesture.id === event.pointerId) button.setPointerCapture(event.pointerId);
-        });
-        button.addEventListener('lostpointercapture',event => endGesture('pointer',event.pointerId,true));
-        button.addEventListener('contextmenu',event => event.preventDefault());
-      });
-      window.addEventListener('pointerup',event => endGesture('pointer',event.pointerId));
-      window.addEventListener('pointercancel',event => endGesture('pointer',event.pointerId,true));
-    } else {
-      commandButtons.forEach(button => {
-        button.addEventListener('touchstart',event => {
-          event.preventDefault(); ignoreMouseUntil = performance.now() + 1000;
-          if (event.touches.length !== 1 && button !== ui.release) return;
-          press(button,'touch',event.changedTouches[0].identifier);
-        },{passive:false});
-        button.addEventListener('mousedown',event => {
-          if (event.button !== 0 || performance.now() < ignoreMouseUntil) return;
-          event.preventDefault(); button.focus({preventScroll:true}); press(button,'mouse',0);
-        });
-        button.addEventListener('contextmenu',event => event.preventDefault());
-      });
-      for (const type of ['touchend','touchcancel']) window.addEventListener(type,event => {
-        ignoreMouseUntil = performance.now() + 1000;
-        for (const touch of event.changedTouches) endGesture('touch',touch.identifier,type === 'touchcancel');
-      });
-      window.addEventListener('mouseup',() => endGesture('mouse',0));
-    }
-    commandButtons.forEach(button => {
-      button.addEventListener('blur',() => {
-        if (gesture && gesture.button === button) endGesture(gesture.source,gesture.id,true);
-      });
+    ui.test.addEventListener('click',() => toggleSound('test'));
+    ui.hold.addEventListener('click',() => toggleSound('hold'));
+    ui.release.addEventListener('click',() => startSound('release'));
+    [ui.test,ui.hold,ui.release].forEach(button => {
+      // Evitar alternâncias repetidas se Enter ficar pressionado.
       button.addEventListener('keydown',event => {
-        if (event.key !== ' ' && event.key !== 'Enter') return;
-        event.preventDefault();
-        if (!event.repeat) { suppressClickUntil = performance.now() + 500; press(button,'key',event.key); }
+        if (event.repeat && (event.key === 'Enter' || event.key === ' ')) event.preventDefault();
       });
-      button.addEventListener('click',event => {
-        // Tecnologias assistivas podem ativar por click sem pointerdown/keydown.
-        // Para teste/modo momentâneo, esse caminho produz um teste de 1 s.
-        if (event.detail !== 0 || performance.now() < suppressClickUntil || button.disabled) return;
-        if (button === ui.release) startSound('release');
-        else if (button === ui.hold && ui.trigger.value === 'toggle') {
-          if (command && command.kind === 'hold') stopSound('Tom encerrado.'); else startSound('hold');
-        } else startSound(button === ui.test ? 'test' : 'hold',true);
-      });
-    });
-    window.addEventListener('keyup',event => {
-      if (event.key === ' ' || event.key === 'Enter') { suppressClickUntil = performance.now() + 500; endGesture('key',event.key); }
+      button.addEventListener('contextmenu',event => event.preventDefault());
     });
     window.addEventListener('keydown',event => { if (event.key === 'Escape') stopSound('Som encerrado.'); });
     ui.stop.addEventListener('click',() => stopSound('Som encerrado.'));
@@ -485,7 +416,6 @@
       $('duration-display').textContent = `${ui.duration.value} s`;
       ui.duration.setAttribute('aria-valuetext',`${ui.duration.value} segundos`);
     });
-    ui.trigger.addEventListener('change',renderControls);
     ui.guide.addEventListener('change',renderControls);
     updateDraft(); renderControls(); updateTimer();
   })();

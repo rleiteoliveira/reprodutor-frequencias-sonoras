@@ -6,14 +6,14 @@ Aplicação responsiva para gerar sinais sonoros de comandos respiratórios, com
 
 ## Uso
 
-1. Na aba **Ajuste**, selecione uma frequência entre 100 e 800 Hz ou use os presets. Mantenha **Testar som** pressionado para ouvir.
+1. Na aba **Ajuste**, selecione uma frequência entre 100 e 800 Hz ou use os presets. Toque em **Testar som** para iniciar o tom contínuo e em **Parar teste** para encerrar.
 2. Confirme a percepção pelo caminho de áudio que será usado e clique em **Salvar frequência base**.
-3. Na aba **Operação**, escolha **Manter pressionado** ou **Alternar / Travar**. O guia opcional sobe o volume durante 1 a 6 segundos antes da sustentação.
-4. **PUXAR E SEGURAR** gera o tom base. O cronômetro começa na sustentação. Encerrar esse botão apenas silencia.
-5. **SOLTAR / RESPIRAR** interrompe o tom anterior e emite dois pulsos em 1,4 vezes a frequência base.
+3. Na aba **Operação**, o guia opcional sobe o volume durante 1 a 6 segundos antes da sustentação.
+4. Um toque em **PUXAR E SEGURAR** inicia o tom base contínuo. Outro toque no mesmo botão silencia. O cronômetro começa na sustentação.
+5. Um toque em **SOLTAR / RESPIRAR** interrompe o tom anterior e reproduz a sequência de dois pulsos em 1,4 vezes a frequência base. Tocar novamente reinicia a sequência.
 6. **Parar som** ou a tecla **Escape** interrompe a reprodução.
 
-Os controles momentâneos também funcionam mantendo **Espaço** ou **Enter** pressionado. O áudio começa somente após uma ação do usuário. Sair da página ou perder o foco encerra o som; retornar não retoma a reprodução automaticamente.
+Todos os comandos funcionam por clique ou toque, sem manter o botão pressionado. No teclado, use **Espaço** ou **Enter** com o botão em foco. O áudio é desbloqueado no clique; quando disponível, a sessão de áudio é configurada como reprodução de mídia no iOS. Sair da página ou perder o foco encerra o som; retornar não retoma a reprodução automaticamente.
 
 A frequência confirmada fica salva no navegador quando o armazenamento local está disponível. A aplicação não coleta nem transmite dados da paciente.
 
