@@ -42,8 +42,8 @@
     .badge { border:1px solid #706038; border-radius:6px; padding:5px 8px; color:#ffda90; font-size:.7rem; text-align:center; }
     input[type="range"] { width:100%; margin:0; min-height:44px; accent-color:var(--amber); cursor:pointer; }
     #frequency { appearance:none; background:transparent; }
-    #frequency::-webkit-slider-runnable-track { height:9px; border-radius:10px; background:linear-gradient(to right,#555 0% 7.14%,var(--amber) 7.14% 35.71%,#555 35.71% 100%); }
-    #frequency::-moz-range-track { height:9px; border-radius:10px; background:linear-gradient(to right,#555 0% 7.14%,var(--amber) 7.14% 35.71%,#555 35.71% 100%); }
+    #frequency::-webkit-slider-runnable-track { height:9px; border-radius:10px; background:linear-gradient(to right,#555 0% 3.57%,var(--amber) 3.57% 17.86%,#555 17.86% 100%); }
+    #frequency::-moz-range-track { height:9px; border-radius:10px; background:linear-gradient(to right,#555 0% 3.57%,var(--amber) 3.57% 17.86%,#555 17.86% 100%); }
     #frequency::-webkit-slider-thumb { appearance:none; width:30px; height:30px; margin-top:-10.5px; border-radius:50%; background:#fff; border:4px solid var(--ink); box-shadow:0 0 0 1px #aaa; }
     #frequency::-moz-range-thumb { width:22px; height:22px; border-radius:50%; background:#fff; border:4px solid var(--ink); }
     .range-labels { display:flex; justify-content:space-between; font-size:.75rem; color:var(--muted); }
@@ -124,8 +124,8 @@
         <h2 class="section-title"><label for="frequency">Encontrar a frequência</label></h2>
         <p class="help">Toque em “Testar som” e confirme a percepção. A faixa destacada é de 150 a 350 Hz.</p>
         <div class="frequency"><div><output id="frequency-display" for="frequency">220</output><span class="unit"> Hz</span></div><span class="badge">150–350 Hz<br>faixa em destaque</span></div>
-        <input id="frequency" data-config type="range" min="100" max="800" step="1" value="220" aria-valuetext="220 hertz">
-        <div class="range-labels" aria-hidden="true"><span>100 Hz</span><span>800 Hz</span></div>
+        <input id="frequency" data-config type="range" min="100" max="1500" step="1" value="220" aria-valuetext="220 hertz">
+        <div class="range-labels" aria-hidden="true"><span>100 Hz</span><span>1500 Hz</span></div>
         <div class="presets" role="group" aria-label="Frequências rápidas">
           <button data-config data-frequency="180" aria-pressed="false">180 Hz</button>
           <button data-config data-frequency="220" aria-pressed="true">220 Hz</button>
@@ -231,7 +231,7 @@
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       const value = Number(stored);
-      if (stored !== null && Number.isInteger(value) && value >= 100 && value <= 800) base = draft = value;
+      if (stored !== null && Number.isInteger(value) && value >= 100 && value <= 1500) base = draft = value;
     } catch (_) { /* Armazenamento privado/bloqueado: continuar em memória. */ }
     try {
       const storedPattern = localStorage.getItem(PATTERN_KEY);
@@ -250,7 +250,7 @@
       updatePatternDescription();
     }
     function sirenRange(frequency) {
-      return { low:Math.max(100,frequency * .85), high:Math.min(800,frequency * 1.15) };
+      return { low:Math.max(100,frequency * .85), high:Math.min(1500,frequency * 1.15) };
     }
     function updatePatternDescription() {
       const { low,high } = sirenRange(draft);

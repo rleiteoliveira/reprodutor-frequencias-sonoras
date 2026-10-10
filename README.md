@@ -6,7 +6,7 @@ Aplicação responsiva para gerar sinais sonoros de comandos respiratórios, com
 
 ## Uso
 
-1. Na aba **Ajuste**, selecione uma frequência entre 100 e 800 Hz ou use os presets. Escolha o **Som de puxar e segurar**. Toque em **Testar som** para iniciar o padrão e em **Parar teste** para encerrar.
+1. Na aba **Ajuste**, selecione uma frequência entre 100 e 1500 Hz ou use os presets. Escolha o **Som de puxar e segurar**. Toque em **Testar som** para iniciar o padrão e em **Parar teste** para encerrar.
 2. Confirme a percepção pelo caminho de áudio que será usado e clique em **Salvar frequência base**.
 3. Na aba **Operação**, o guia opcional sobe o volume durante 1 a 6 segundos antes da sustentação.
 4. Um toque em **PUXAR E SEGURAR** inicia o padrão escolhido, repetindo até outro toque no mesmo botão ou outro comando. O cronômetro começa na sustentação.
@@ -35,7 +35,7 @@ Os áudios pertencem àquele navegador e aparelho, não ao repositório público
 
 ## Padrões sonoros
 
-- **Sirene suave** (opção inicial): varia a frequência em até 15% acima e abaixo da base, em ciclos suaves de 2 segundos. A variação fica entre 100 e 800 Hz; nos extremos, a faixa é limitada. Não aumenta o volume definido.
+- **Sirene suave** (opção inicial): varia a frequência em até 15% acima e abaixo da base, em ciclos suaves de 2 segundos. A variação fica entre 100 e 1500 Hz; nos extremos, a faixa é limitada. Não aumenta o volume definido.
 - **Pulsos espaçados**: um toque de 0,4 segundo seguido de 0,5 segundo de silêncio, repetindo na frequência base. Os ataques e saídas são suaves.
 - **Tom contínuo**: sinal constante na frequência base.
 
