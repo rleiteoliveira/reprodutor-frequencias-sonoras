@@ -23,22 +23,30 @@ Na aba **Ajuste**, em **Áudios personalizados**:
 
 1. Toque em **Gravar puxar**, permita o microfone e fale o comando. Toque em **Finalizar** para registrar.
 2. Repita com **Gravar soltar**. Cada gravação pode ter até 30 segundos.
-3. O **Áudio A** corresponde à opção 1 (**PUXAR E SEGURAR**) e o **Áudio B**, à opção 2 (**SOLTAR / RESPIRAR**). Escolha **Voz original** ou **Voz ajustada à frequência** separadamente para cada áudio.
-4. Use **Ouvir puxar** e **Ouvir soltar** para conferir cada amostra uma vez. No modo ajustado, **Comparar com original A/B** permite ouvir a gravação sem alteração. Uma nova gravação substitui a anterior somente após ser validada; cancelar mantém a anterior.
-5. Toque em **Usar áudios gravados nos comandos**, disponível após registrar os dois áudios. Para voz ajustada, os testes usam a frequência selecionada; **Salvar frequência base** confirma o alvo usado na operação.
+3. O **Áudio A** corresponde à opção 1 (**PUXAR E SEGURAR**) e o **Áudio B**, à opção 2 (**SOLTAR / RESPIRAR**). Escolha **Voz original** ou **Voz filtrada na faixa** separadamente para cada áudio.
+4. Use **Ouvir puxar** e **Ouvir soltar** para conferir cada amostra uma vez. **Comparar com original A/B** permite ouvir a gravação sem filtros e em velocidade natural. Uma nova gravação substitui a anterior somente após ser validada; cancelar mantém a anterior.
+5. Toque em **Usar áudios gravados nos comandos**, disponível após registrar os dois áudios. Para voz filtrada, os testes usam a frequência selecionada; **Salvar frequência base** confirma o centro da faixa usada na operação.
 6. Na operação, **PUXAR E SEGURAR** repete o áudio A completo até outro toque ou comando. **SOLTAR / RESPIRAR** interrompe essa repetição e reproduz o áudio B uma vez, com a escolha de voz de cada um. O cronômetro conta desde o início da gravação de puxar; o guia de volume dos tons fica oculto neste modo.
 
 **Excluir puxar** e **Excluir soltar** removem o respectivo áudio deste navegador. Ao excluir um áudio usado pelo modo personalizado, o app volta à sirene. A sirene não modifica as gravações; o controle de volume continua disponível.
 
-### Voz ajustada (experimental)
+### Voz filtrada e velocidade independente
 
-O app estima a frequência fundamental média em trechos sonoros da gravação, por diferença periódica normalizada e mediana. Usa `AudioBufferSourceNode.playbackRate` para aproximar essa altura da frequência escolhida. Essa transposição também altera a velocidade e a duração da fala: baixar a voz torna a reprodução mais lenta, e subir torna mais rápida. Não preserva os formantes nem transforma todas as frequências da fala em uma única faixa.
+Mudar a frequência não altera a velocidade, a duração ou a altura da gravação. O `AudioBufferSourceNode.playbackRate` fica **sempre em 1,0**. A estimativa de altura da voz e todos os cálculos que ligavam frequência a `playbackRate` foram removidos.
 
-O fator de reprodução fica entre **0,5× e 2×**, para limitar alterações extremas. Isso é uma escolha do software, não um limite clínico. A interface mostra a referência estimada, a altura aproximada resultante, a velocidade e a duração. Se o alvo escolhido exceder esse intervalo, mostra explicitamente o resultado limitado. Por exemplo, uma referência de 200 Hz com alvo de 1500 Hz resulta em aproximadamente 400 Hz, com velocidade 2×.
+No modo filtrado, o sinal passa por três [`BiquadFilterNode`](https://developer.mozilla.org/en-US/docs/Web/API/BiquadFilterNode), nesta ordem:
 
-As escolhas de A e B ficam salvas quando o armazenamento permite. O arquivo original é preservado; a alteração acontece somente durante a reprodução. Silêncio, ruído ou voz sem periodicidade suficiente podem impedir a estimativa: nesse caso o ajuste não toca, e o app solicita nova gravação ou uso da voz original. Gravações antigas continuam disponíveis e são analisadas quando o ajuste é solicitado.
+1. **Highpass** em `frequência − 150 Hz`, com mínimo de 20 Hz quando esse valor seria negativo ou muito baixo.
+2. **Peaking** na frequência selecionada, com **ganho +15 dB e Q = 2,0**. Foi escolhido peaking porque o parâmetro de ganho não atua no tipo bandpass.
+3. **Lowpass** em `frequência + 150 Hz`.
 
-Este recurso não equivale a um aparelho auditivo, não usa audiograma e não comprova melhora da compreensão. Confirme os dois comandos com a paciente e a equipe através do interfone; a voz modificada pode ficar menos compreensível. O processamento e as gravações permanecem no celular, sem upload ou conversão em servidor.
+Por exemplo, 550 Hz produz highpass de 400 Hz, peaking de 550 Hz e lowpass de 700 Hz. Uma margem fixa de −18 dB após os filtros compensa o boost e reserva margem para evitar saturação; o ganho relativo do peaking permanece +15 dB. São filtros de segunda ordem com transições graduais: atenuam frequências fora da faixa, sem cortes absolutos ou transposição das frequências da fala.
+
+O slider **Velocidade da Fala** funciona separadamente, entre **0,8× e 1,0×**, começando em **1,0×** a cada visita. Em 1,0×, o buffer original é reproduzido sem processamento temporal. Apenas quando o usuário reduz esse slider, o app prepara localmente um buffer mais longo por sobreposição de janelas alinhadas (WSOLA), procurando preservar a altura da voz. A duração passa a ser `duração original / velocidade escolhida`; o `playbackRate` continua em 1,0. Esse ajuste vale para os dois comandos e seus testes, inclusive sem filtros. A comparação original sempre usa 1,0×.
+
+As escolhas de A e B ficam salvas quando o armazenamento permite. O arquivo original é preservado. As antigas preferências de voz ajustada migram para filtragem, sem apagar os áudios. A preparação da fala pausada pode ser cancelada por **Parar som**, saída da página ou troca de comando; o buffer preparado fica em memória e é reutilizado ao mudar somente a frequência.
+
+Este recurso não equivale a um aparelho auditivo, não usa audiograma e não comprova melhora da compreensão. A filtragem estreita pode remover informações necessárias para reconhecer palavras, e o processamento de desaceleração pode introduzir artefatos. Confirme os dois comandos com a paciente e a equipe através do interfone. O processamento e as gravações permanecem no celular, sem upload ou conversão em servidor.
 
 O navegador pede o microfone somente ao gravar, usando HTTPS (como no GitHub Pages) ou localhost. O formato é escolhido entre os suportados pelo navegador, incluindo MP4 ou WebM. O microfone é desligado ao terminar, cancelar ou sair da página. **Parar som** e **Escape** também cancelam uma gravação em andamento.
 
@@ -72,6 +80,8 @@ O GitHub Pages serve a raiz da branch `main`. O arquivo `.nojekyll` permite a pu
 
 Foram verificados em Chromium os controles, envelopes e pulsos de áudio, persistência, teclado, toque/multitouch emulado, interrupções e layouts entre 320 e 844 px, incluindo ampliação de 200%.
 
-Para voz ajustada, foram verificadas gravações por `MediaRecorder` com microfone sintético, transposição de um sinal de 200 para 150 Hz renderizada em `OfflineAudioContext`, comparação original, duração com `playbackRate`, limites de ajuste, escolhas independentes e persistência de A/B, rejeição de silêncio e cancelamento de preparação. Esses testes não comprovam inteligibilidade de fala humana. A reprodução usa o comportamento nativo documentado de [`AudioBufferSourceNode.playbackRate`](https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode/playbackRate).
+Os testes de processamento verificam os parâmetros e a ordem dos filtros, reprodução em `playbackRate = 1,0`, duração constante ao mudar a frequência, desaceleração independente, comparação original, escolhas de A/B e cancelamento. Esses testes não comprovam inteligibilidade de fala humana.
+
+Na verificação em Chromium, uma amostra de 3 segundos manteve exatamente essa duração nos centros de 100, 550 e 1500 Hz. A renderização offline do filtro em 550 Hz manteve o componente central e atenuou componentes de 100 e 2000 Hz. O controle de 0,8× produziu 1,5 segundo a partir de uma amostra de 1,2 segundo, mantendo `playbackRate = 1,0` e o tom de referência de 220 Hz no teste sintético. Também foram verificados migração das preferências antigas, reutilização do buffer pausado ao mudar a frequência e liberação dos nós ao parar.
 
 A validação em aparelhos físicos Android/iOS e a audibilidade pelo interfone da ressonância ainda precisam ser confirmadas. Os sinais e tempos devem seguir a orientação da equipe responsável. As referências de 10 e 15 segundos são apenas visuais; não há encerramento automático ou recomendação de duração de apneia. A porcentagem de volume não mede pressão sonora.

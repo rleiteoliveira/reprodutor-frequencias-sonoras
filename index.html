@@ -155,7 +155,11 @@
       <div class="panel" id="recordings-panel">
         <h2 class="section-title">Áudios personalizados</h2>
         <p class="help">Grave pelo microfone do celular, com até 30 segundos por áudio. A e B ficam neste navegador, sem envio à internet.</p>
-        <p class="help" id="voice-help"><strong>Voz ajustada (experimental):</strong> aproxima a altura média da voz da frequência selecionada e também muda a velocidade da fala. A voz continua contendo várias frequências. Não equivale a um aparelho auditivo. Compare com o original e confirme a compreensão dos comandos com a paciente e a equipe pelo interfone.</p>
+        <p class="help" id="voice-help"><strong>Voz filtrada:</strong> realça a faixa ao redor da frequência selecionada, sem mudar a velocidade ou deslocar a altura da voz. A fala permanece natural em 1,0×. A filtragem pode remover partes importantes da fala; compare com o original e confirme os comandos com a paciente e a equipe pelo interfone.</p>
+        <div class="row"><label for="speech-speed"><strong>Velocidade da Fala</strong></label><output id="speech-speed-display" for="speech-speed">1,00×</output></div>
+        <input id="speech-speed" data-config type="range" min="0.8" max="1" step="0.01" value="1" aria-valuetext="1 vez, velocidade natural" aria-describedby="speech-speed-help">
+        <div class="range-labels" aria-hidden="true"><span>0,8× · mais pausada</span><span>1,0× · natural</span></div>
+        <p id="speech-speed-help" class="help">Independente da frequência. Só este controle desacelera os áudios A e B. “Comparar com original” sempre toca a gravação natural em 1,0×.</p>
         <p id="recording-support" class="help">O microfone só é solicitado ao tocar em “Gravar”.</p>
         <div class="record-card">
           <h3>Áudio A · opção 1: puxar e segurar · repete</h3>
@@ -169,7 +173,7 @@
             <label for="treatment-hold">Reprodução do áudio A</label>
             <select id="treatment-hold" data-config aria-describedby="voice-help shift-hold-status">
               <option value="original">Voz original</option>
-              <option value="shifted">Voz ajustada à frequência</option>
+              <option value="filtered">Voz filtrada na faixa</option>
             </select>
             <p id="shift-hold-status" class="help">O original é preservado.</p>
             <button id="original-hold" class="compare-button" disabled>Comparar com original A</button>
@@ -187,14 +191,14 @@
             <label for="treatment-release">Reprodução do áudio B</label>
             <select id="treatment-release" data-config aria-describedby="voice-help shift-release-status">
               <option value="original">Voz original</option>
-              <option value="shifted">Voz ajustada à frequência</option>
+              <option value="filtered">Voz filtrada na faixa</option>
             </select>
             <p id="shift-release-status" class="help">O original é preservado.</p>
             <button id="original-release" class="compare-button" disabled>Comparar com original B</button>
           </div>
         </div>
         <button id="use-recordings" data-config disabled>Usar áudios gravados nos comandos</button>
-        <p class="help">Grave os dois áudios e escolha original ou ajustado para cada um. “Ouvir” usa essa escolha e toca uma vez, com a frequência selecionada. Salve a frequência base para usá-la na operação: A repete até você parar; B toca uma vez.</p>
+        <p class="help">Grave os dois áudios e escolha original ou filtrado para cada um. “Ouvir” usa essa escolha e toca uma vez, com a frequência selecionada. Salve a frequência base para usá-la na operação: A repete até você parar; B toca uma vez.</p>
       </div>
       <div class="panel">
         <div class="row"><label for="volume"><strong>Volume do aplicativo</strong></label><output id="volume-display" for="volume">30%</output></div>
@@ -263,7 +267,8 @@
     } catch (_) { /* Continuar com o padrão desta sessão. */ }
     try {
       const saved = JSON.parse(localStorage.getItem(VOICE_KEY));
-      for (const slot of ['hold','release']) if (saved?.[slot] === 'shifted') treatments[slot] = 'shifted';
+      // Migra a antiga opção sem alterar ou apagar as gravações existentes.
+      for (const slot of ['hold','release']) if (['filtered','shifted'].includes(saved?.[slot])) treatments[slot] = 'filtered';
     } catch (_) { /* Preferências opcionais: manter a voz original. */ }
     ui.frequency.value = draft;
     ui['sound-pattern'].value = pattern;
@@ -286,7 +291,7 @@
       $('pattern-help').textContent = pattern === 'siren'
         ? `Sobe e desce entre ${Math.round(low)} e ${Math.round(high)} Hz, em ciclos de 2 segundos. A frequência base continua sendo ${draft} Hz.`
         : pattern === 'pulse' ? 'Um toque de 0,4 s, seguido de 0,5 s de silêncio, repetindo na frequência selecionada.'
-        : pattern === 'custom' ? `A repete no botão de puxar; B toca uma vez no botão de soltar. ${hasShiftedVoice() ? `Voz ajustada usa o alvo selecionado no teste e a base salva (${base} Hz) na operação.` : 'Os dois áudios usam a voz original.'}`
+        : pattern === 'custom' ? `A repete no botão de puxar; B toca uma vez no botão de soltar. ${hasFilteredVoice() ? `A filtragem usa a frequência selecionada no teste e a base salva (${base} Hz) na operação.` : 'Os dois áudios usam a voz sem filtros.'} Velocidade ${speechSpeedLabel()}.`
         : 'Um tom constante na frequência selecionada.';
     }
     function setPhase(text, kind = '') {
@@ -302,7 +307,7 @@
     function renderControls() {
       const busy = Boolean(command || capture || clipBusy || clipsLoading);
       const custom = pattern === 'custom';
-      const originalOnly = custom && !hasShiftedVoice();
+      const originalOnly = custom && !hasFilteredVoice();
       document.querySelectorAll('[data-config]').forEach(input => input.disabled = busy);
       ui.frequency.disabled = busy || originalOnly;
       ui.save.disabled = busy || originalOnly;
@@ -319,11 +324,11 @@
       ui.release.classList.toggle('active',Boolean(command && command.kind === 'release'));
       ui.hold.setAttribute('aria-pressed',String(holding));
       ui.hold.setAttribute('aria-busy',String(Boolean(command && command.kind === 'hold' && !voice)));
-      $('hold-hint').textContent = holding ? 'Toque novamente para silenciar' : custom ? `Áudio A · ${treatments.hold === 'shifted' ? `voz ajustada · alvo ${base} Hz` : 'voz original'} · repete` : `Toque para iniciar · ${PATTERNS[pattern]}`;
+      $('hold-hint').textContent = holding ? 'Toque novamente para silenciar' : custom ? `Áudio A · ${treatments.hold === 'filtered' ? `filtrada · ${base} Hz` : 'sem filtros'} · ${speechSpeedLabel()} · repete` : `Toque para iniciar · ${PATTERNS[pattern]}`;
       ui['test-release'].classList.toggle('active',Boolean(command && command.kind === 'release' && command.preview));
       $('duration-controls').hidden = !ui.guide.checked;
       document.querySelector('.operation-config').hidden = custom;
-      $('release-hint').textContent = custom ? `Áudio B · ${treatments.release === 'shifted' ? `voz ajustada · alvo ${base} Hz` : 'voz original'} · uma vez` : 'Bip-bip · sinal de liberação';
+      $('release-hint').textContent = custom ? `Áudio B · ${treatments.release === 'filtered' ? `filtrada · ${base} Hz` : 'sem filtros'} · ${speechSpeedLabel()} · uma vez` : 'Bip-bip · sinal de liberação';
       ui['test-release'].textContent = custom ? 'Testar liberação · áudio gravado' : 'Testar liberação · bip-bip';
       $('release-help').textContent = custom ? 'Ouça o áudio de soltar e compare com o de puxar. Confirme que a paciente distingue os dois.' : 'Compare o bip-bip com o som de puxar, usando a frequência selecionada. Confirme que a paciente distingue os dois.';
       $('timer-help').textContent = custom ? 'Conta desde o início da gravação. O encerramento é manual.' : 'Contagem da sustentação. O encerramento é manual.';
@@ -336,17 +341,13 @@
     function recordingSupported() {
       return Boolean(window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
     }
-    function hasShiftedVoice() { return Object.values(treatments).includes('shifted'); }
-    function voiceAdjustment(reference,target) {
-      // Varispeed altera altura E duração. O limite é uma escolha de implementação,
-      // não um limite clínico; mostrar o resultado real quando o alvo exige mais.
-      const requested = target / reference;
-      const rate = Math.max(.5,Math.min(2,requested));
-      return { rate, actual:reference * rate, limited:Math.abs(rate - requested) > .001 };
-    }
-    function adjustmentDescription(clip,target) {
-      const {rate,actual,limited} = voiceAdjustment(clip.reference,target);
-      return `Voz estimada: ${Math.round(clip.reference)} Hz → aproximadamente ${Math.round(actual)} Hz. Velocidade ${rate.toFixed(2).replace('.',',')}× · duração ${(clip.duration / rate).toFixed(1).replace('.',',')} s.${limited ? ` Alvo de ${target} Hz fora do ajuste de 0,5× a 2×; este é o resultado limitado.` : ''}`;
+    function hasFilteredVoice() { return Object.values(treatments).includes('filtered'); }
+    function speechSpeed() { return Math.max(.8,Math.min(1,Number($('speech-speed').value) || 1)); }
+    function speechSpeedLabel(speed = speechSpeed()) { return `${speed.toFixed(2).replace('.',',')}×`; }
+    function filterRange(frequency) { return {low:Math.max(20,frequency - 150),high:frequency + 150}; }
+    function filterDescription(frequency) {
+      const {low,high} = filterRange(frequency);
+      return `Faixa realçada: ${low}–${high} Hz · centro ${frequency} Hz · peaking +15 dB, Q 2. A frequência não altera a duração da frase.`;
     }
     function renderRecordings(busy) {
       const ready = Boolean(clips.hold && clips.release);
@@ -361,9 +362,9 @@
         record.textContent = !r ? `Gravar ${name}` : r.phase === 'requesting' ? 'Cancelar' : r.phase === 'processing' ? 'Salvando…' : 'Finalizar';
         $(`listen-${slot}`).disabled = Boolean(capture || clipBusy || clipsLoading || !clip);
         $(`treatment-${slot}`).value = treatments[slot];
-        $(`original-${slot}`).hidden = treatments[slot] !== 'shifted';
+        $(`original-${slot}`).hidden = treatments[slot] !== 'filtered' && speechSpeed() === 1;
         $(`original-${slot}`).disabled = Boolean(capture || clipBusy || clipsLoading || !clip);
-        $(`shift-${slot}-status`).textContent = treatments[slot] === 'original' ? 'Voz original, sem mudança de altura ou velocidade.' : clip?.reference ? adjustmentDescription(clip,draft) : 'Toque em “Ouvir” para estimar a altura da voz e conferir o ajuste. O original é preservado; o ajuste é limitado entre 0,5× e 2×.';
+        $(`shift-${slot}-status`).textContent = `${treatments[slot] === 'filtered' ? filterDescription(draft) : 'Voz sem filtros de frequência.'} Velocidade ${speechSpeedLabel()}${clip ? ` · duração ${(clip.duration / speechSpeed()).toFixed(1).replace('.',',')} s` : ''}. O original é preservado.`;
         $(`delete-${slot}`).disabled = busy || !clip;
         $(`clip-${slot}-status`).textContent = clipsLoading ? 'Carregando gravação…' : r ? r.phase === 'requesting' ? 'Aguardando permissão do microfone…' : r.phase === 'processing' ? 'Preparando e salvando o áudio…' : `Gravando · ${Math.min(MAX_CLIP_SECONDS,(performance.now() - r.started) / 1000).toFixed(1)} s / 30 s` : clip ? `${clip.duration.toFixed(1)} s · ${clip.persisted ? 'salvo neste navegador' : 'disponível somente nesta sessão'}` : 'Nenhum áudio gravado.';
       }
@@ -390,7 +391,7 @@
         const tx = db.transaction('clips','readwrite');
         if (ticket) ticket.transaction = tx;
         const store = tx.objectStore('clips');
-        if (value) store.put({slot,blob:value.blob,duration:value.duration,reference:value.reference}); else store.delete(slot);
+        if (value) store.put({slot,blob:value.blob,duration:value.duration}); else store.delete(slot);
         tx.oncomplete = () => resolve();
         tx.onerror = tx.onabort = () => reject(tx.error || new Error('Não foi possível salvar neste navegador.'));
       });
@@ -402,7 +403,7 @@
           const request = db.transaction('clips','readonly').objectStore('clips').getAll();
           request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
         });
-        for (const clip of saved) if (Object.hasOwn(clips,clip.slot) && clip.blob instanceof Blob && clip.blob.size > 0 && clip.blob.size <= MAX_CLIP_BYTES && Number.isFinite(clip.duration) && clip.duration >= .2 && clip.duration <= MAX_CLIP_SECONDS + 1) clips[clip.slot] = {...clip,reference:Number.isFinite(clip.reference) && clip.reference >= 60 && clip.reference <= 500 ? clip.reference : null,buffer:null,persisted:true};
+        for (const clip of saved) if (Object.hasOwn(clips,clip.slot) && clip.blob instanceof Blob && clip.blob.size > 0 && clip.blob.size <= MAX_CLIP_BYTES && Number.isFinite(clip.duration) && clip.duration >= .2 && clip.duration <= MAX_CLIP_SECONDS + 1) clips[clip.slot] = {blob:clip.blob,duration:clip.duration,buffer:null,persisted:true};
       } catch (_) { feedback('Gravações disponíveis somente nesta sessão: o armazenamento local não está acessível.'); }
       if (pattern === 'custom' && !(clips.hold && clips.release)) {
         pattern = 'siren'; ui['sound-pattern'].value = pattern;
@@ -467,9 +468,7 @@
             if (!Number.isFinite(buffer.duration) || buffer.duration < .2 || buffer.duration > MAX_CLIP_SECONDS + 1) throw new Error('Grave um áudio entre 0,2 e 30 segundos.');
             if (capture !== r) return;
             softenClipEdges(buffer);
-            const reference = await estimateVoicePitch(buffer,() => capture !== r);
-            if (capture !== r) return;
-            const clip = {blob,buffer,reference,duration:buffer.duration,persisted:false};
+            const clip = {blob,buffer,duration:buffer.duration,persisted:false};
             try { await writeClip(slot,clip,r); clip.persisted = true; } catch (_) { /* Manter o áudio em memória se o armazenamento falhar. */ }
             if (capture !== r) return;
             clips[slot] = clip; capture = null; renderControls();
@@ -530,65 +529,82 @@
       return clip.buffer;
     }
 
-    // Estimativa da frequência fundamental em trechos sonoros da gravação.
-    // Diferença normalizada por período (YIN simplificado), mediana de até 60
-    // janelas. Não é audiometria: silêncio, ruído e voz instável podem ser rejeitados.
-    async function estimateVoicePitch(buffer,cancelled) {
-      const check = () => { if (cancelled()) throw new Error('Preparação cancelada.'); };
-      const yieldUI = async () => { await new Promise(resolve => setTimeout(resolve,0)); check(); };
+    // Desaceleração opcional por sobreposição de janelas alinhadas (WSOLA).
+    // Somente o slider de fala determina a duração. A frequência não participa
+    // deste cálculo; o AudioBufferSourceNode permanece SEMPRE em playbackRate 1.
+    // Em 1,0× devolvemos o buffer original, sem processamento temporal algum.
+    async function stretchSpeech(buffer,speed,cancelled) {
+      const yieldUI = async () => {
+        await new Promise(resolve => setTimeout(resolve,0));
+        if (cancelled()) throw new Error('Preparação cancelada.');
+      };
       await yieldUI();
-      const sampleRate = 4000, length = Math.floor(buffer.duration * sampleRate);
-      const mono = new Float32Array(length), channels = [];
-      for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
-      const stride = buffer.sampleRate / sampleRate;
-      for (let i = 0; i < length; i++) {
-        const a = Math.floor(i * stride), b = Math.min(buffer.length,Math.max(a + 1,Math.floor((i + 1) * stride)));
-        let sum = 0;
-        for (const channel of channels) for (let j = a; j < b; j++) sum += channel[j];
-        mono[i] = sum / ((b - a) * channels.length);
-      }
-      const windowSize = 480, maxLag = 66, minLag = 8;
-      if (length < windowSize) return null;
-      const count = Math.min(60,Math.floor((length - windowSize) / 160) + 1), pitches = [];
-      const difference = new Float64Array(maxLag + 1);
-      for (let frame = 0; frame < count; frame++) {
-        if (frame % 8 === 0) await yieldUI();
-        const start = count === 1 ? 0 : Math.round(frame * (length - windowSize) / (count - 1));
-        let mean = 0, variance = 0;
-        for (let i = 0; i < windowSize; i++) mean += mono[start + i];
-        mean /= windowSize;
-        for (let i = 0; i < windowSize; i++) variance += (mono[start + i] - mean) ** 2;
-        if (Math.sqrt(variance / windowSize) < .005) continue;
-        let cumulative = 0;
-        for (let lag = 1; lag <= maxLag; lag++) {
-          let distance = 0;
-          for (let i = 0; i < windowSize - maxLag; i++) distance += (mono[start + i] - mono[start + i + lag]) ** 2;
-          cumulative += distance;
-          difference[lag] = cumulative > 1e-12 ? distance * lag / cumulative : 1;
+      const size = Math.round(buffer.sampleRate * .04), hop = Math.floor(size / 2);
+      const search = Math.round(buffer.sampleRate * .01), stride = Math.max(1,Math.floor(buffer.sampleRate / 6000));
+      const length = Math.ceil(buffer.length / speed);
+      const result = audioCtx.createBuffer(buffer.numberOfChannels,length,buffer.sampleRate);
+      const input = [], output = [], weights = new Float32Array(length), window = new Float32Array(size);
+      for (let c = 0; c < buffer.numberOfChannels; c++) { input.push(buffer.getChannelData(c)); output.push(result.getChannelData(c)); }
+      for (let i = 0; i < size; i++) window[i] = .5 - .5 * Math.cos(2 * Math.PI * i / (size - 1));
+      let previous = 0, frameNumber = 0;
+      for (let position = 0; position < length; position += hop) {
+        if (frameNumber++ % 12 === 0) await yieldUI();
+        const nominal = Math.min(buffer.length - 1,Math.round(position * speed));
+        let chosen = nominal;
+        if (position > 0) {
+          let best = -Infinity;
+          const start = Math.max(0,nominal - search), end = Math.min(buffer.length - 1,nominal + search);
+          // Compara a cauda anterior e a próxima janela para evitar saltos de fase.
+          const score = candidate => {
+            let dot = 0, a2 = 0, b2 = 0;
+            for (let i = 0; i < hop; i += stride) {
+              const a = input[0][previous + hop + i] || 0, b = input[0][candidate + i] || 0;
+              dot += a * b; a2 += a * a; b2 += b * b;
+            }
+            return (a2 * b2 > 1e-12 ? dot / Math.sqrt(a2 * b2) : 0) - 1e-6 * Math.abs(candidate - nominal) / Math.max(1,search);
+          };
+          for (let candidate = start; candidate <= end; candidate += stride) {
+            const value = score(candidate);
+            if (value > best) { best = value; chosen = candidate; }
+          }
+          const coarse = chosen;
+          for (let candidate = Math.max(start,coarse - stride); candidate <= Math.min(end,coarse + stride); candidate++) {
+            const value = score(candidate);
+            if (value > best) { best = value; chosen = candidate; }
+          }
         }
-        for (let lag = minLag; lag < maxLag; lag++) {
-          if (difference[lag] >= .18) continue;
-          while (lag < maxLag - 1 && difference[lag + 1] < difference[lag]) lag++;
-          const a = difference[lag - 1], b = difference[lag], c = difference[lag + 1];
-          const denominator = a - 2 * b + c;
-          const offset = Math.abs(denominator) > 1e-12 ? Math.max(-.5,Math.min(.5,.5 * (a - c) / denominator)) : 0;
-          const pitch = sampleRate / (lag + offset);
-          if (pitch >= 60 && pitch <= 500) pitches.push(pitch);
-          break;
+        for (let i = 0; i < size && position + i < length; i++) {
+          const weight = window[i]; weights[position + i] += weight;
+          for (let c = 0; c < input.length; c++) output[c][position + i] += (input[c][chosen + i] || 0) * weight;
         }
+        previous = chosen;
       }
-      check();
-      if (pitches.length < 2) return null;
-      pitches.sort((a,b) => a - b);
-      return pitches[Math.floor(pitches.length / 2)];
+      for (let c = 0; c < output.length; c++) for (let i = 0; i < length; i++) if (weights[i] > 1e-8) output[c][i] /= weights[i];
+      if (cancelled()) throw new Error('Preparação cancelada.');
+      softenClipEdges(result);
+      return result;
     }
-    async function getClipPlayback(slot,target,token,forceOriginal) {
-      const buffer = await getClipBuffer(slot), clip = clips[slot];
-      if (treatments[slot] !== 'shifted' || forceOriginal) return {buffer,rate:1,shifted:false};
-      if (!clip.reference) clip.reference = await estimateVoicePitch(buffer,() => token !== generation);
-      if (!clip.reference) throw new Error('Não foi possível estimar a altura da voz. Grave uma fala mais clara ou escolha “Voz original”.');
-      const adjustment = voiceAdjustment(clip.reference,target);
-      return {buffer,...adjustment,shifted:true};
+    async function getClipPlayback(slot,token,forceOriginal) {
+      let buffer = await getClipBuffer(slot);
+      if (token !== generation) throw new Error('Preparação cancelada.');
+      const clip = clips[slot], speed = forceOriginal ? 1 : speechSpeed();
+      if (speed < 1) {
+        if (clip.stretched?.speed !== speed) clip.stretched = {speed,buffer:await stretchSpeech(buffer,speed,() => token !== generation)};
+        buffer = clip.stretched.buffer;
+      }
+      return {buffer,speed,filtered:treatments[slot] === 'filtered' && !forceOriginal};
+    }
+    function connectVoiceFilters(source,destination,frequency,start) {
+      const {low,high} = filterRange(frequency);
+      const highpass = audioCtx.createBiquadFilter(), peaking = audioCtx.createBiquadFilter(), lowpass = audioCtx.createBiquadFilter();
+      highpass.type = 'highpass'; highpass.frequency.setValueAtTime(low,start); highpass.Q.value = Math.SQRT1_2;
+      peaking.type = 'peaking'; peaking.frequency.setValueAtTime(frequency,start); peaking.Q.value = 2; peaking.gain.value = 15;
+      lowpass.type = 'lowpass'; lowpass.frequency.setValueAtTime(high,start); lowpass.Q.value = Math.SQRT1_2;
+      // Margem fixa para o boost central não provocar saturação digital. Não
+      // modifica frequência/tempo; o peaking continua com ganho relativo +15 dB.
+      const headroom = audioCtx.createGain(); headroom.gain.value = 10 ** (-18 / 20);
+      source.connect(highpass); highpass.connect(peaking); peaking.connect(lowpass); lowpass.connect(headroom); headroom.connect(destination);
+      return [highpass,peaking,lowpass,headroom];
     }
 
     // Um único contexto. O click ocorre após o toque terminar, com ativação do usuário
@@ -729,7 +745,7 @@
       renderControls(); feedback('Preparando áudio…');
       try {
         await ensureAudio();
-        const clipPlayback = useClip ? await getClipPlayback(slot,frequency,token,forceOriginal) : null;
+        const clipPlayback = useClip ? await getClipPlayback(slot,token,forceOriginal) : null;
         const clipBuffer = clipPlayback?.buffer;
         if (token !== generation || !command) return;
         if (document.hidden) { stopSound('Página inativa. Acione novamente para retomar.',true); return; }
@@ -740,15 +756,17 @@
         const osc = useClip ? audioCtx.createBufferSource() : audioCtx.createOscillator(), gain = audioCtx.createGain();
         if (useClip) {
           osc.buffer = clipBuffer;
-          osc.playbackRate.setValueAtTime(clipPlayback.rate,start);
+          osc.playbackRate.setValueAtTime(1.0,start);
           osc.loop = !clipPreview && kind !== 'release';
         } else {
           osc.type = 'triangle';
           osc.frequency.setValueAtTime(toneFrequency,start);
         }
         gain.gain.setValueAtTime(0,audioCtx.currentTime);
-        osc.connect(gain); gain.connect(master);
-        const v = { osc, gain, modSources:[], modNodes:[], segments:[], tail:1, disposed:false, retired:false };
+        const filterNodes = useClip && clipPlayback.filtered ? connectVoiceFilters(osc,gain,frequency,start) : [];
+        if (!filterNodes.length) osc.connect(gain);
+        gain.connect(master);
+        const v = { osc, gain, modSources:[], modNodes:filterNodes, segments:[], tail:1, disposed:false, retired:false };
         function ramp(from,to,a,b) {
           gain.gain.setValueAtTime(from,a); gain.gain.linearRampToValueAtTime(to,b);
           v.segments.push({ start:a,end:b,from,to });
@@ -757,7 +775,7 @@
         if (useClip) {
           ramp(0,1,start,start + .005);
           if (!osc.loop) {
-            end = start + clipBuffer.duration / clipPlayback.rate;
+            end = start + clipBuffer.duration;
             ramp(1,1,start + .005,end - .005);
             ramp(1,0,end - .005,end); v.tail = 0;
           }
@@ -789,7 +807,7 @@
         setPhase(kind === 'test' ? 'Testando' : kind === 'release' ? 'Liberando' : guideSeconds ? 'Inspirando' : 'Sustentando',kind === 'release' ? 'release' : 'active');
         $('inspiration-progress').max = guideSeconds || 1;
         renderControls(); tick();
-        feedback(useClip ? `Áudio ${slot === 'hold' ? 'A' : 'B'} · ${osc.loop ? 'repetindo até você parar' : 'reproduzindo uma vez'}. ${clipPlayback.shifted ? adjustmentDescription(clips[slot],frequency) : 'Voz original.'}` : kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
+        feedback(useClip ? `Áudio ${slot === 'hold' ? 'A' : 'B'} · ${osc.loop ? 'repetindo até você parar' : 'reproduzindo uma vez'} · fala ${speechSpeedLabel(clipPlayback.speed)}. ${clipPlayback.filtered ? filterDescription(frequency) : 'Voz sem filtros de frequência.'}` : kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
       } catch (error) {
         if (token === generation) { stopSound(); feedback(error.message || 'Falha ao iniciar áudio. Tente novamente.',true); }
       }
@@ -838,6 +856,11 @@
       });
     });
     ui.frequency.addEventListener('input',updateDraft);
+    $('speech-speed').addEventListener('input',() => {
+      $('speech-speed-display').textContent = speechSpeedLabel();
+      $('speech-speed').setAttribute('aria-valuetext',`${speechSpeedLabel()}${speechSpeed() === 1 ? ', velocidade natural' : ', fala mais pausada'}`);
+      renderControls(); updatePatternDescription();
+    });
     document.querySelectorAll('[data-frequency]').forEach(button => button.addEventListener('click',() => { ui.frequency.value = button.dataset.frequency; updateDraft(); }));
     ui.save.addEventListener('click',() => {
       base = draft; updateDraft();
@@ -869,7 +892,7 @@
       });
       $(`treatment-${slot}`).addEventListener('change',event => {
         if (command || capture || clipBusy || clipsLoading) return;
-        treatments[slot] = event.target.value === 'shifted' ? 'shifted' : 'original';
+        treatments[slot] = event.target.value === 'filtered' ? 'filtered' : 'original';
         renderControls(); updatePatternDescription();
         try { localStorage.setItem(VOICE_KEY,JSON.stringify(treatments)); feedback('Preferências de voz salvas. Compare A e B antes de usar.'); }
         catch (_) { feedback('Preferências de voz definidas somente nesta sessão.'); }
