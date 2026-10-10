@@ -58,10 +58,13 @@
     .record-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
     .record-actions button { font-size:.8rem; padding:8px 4px; }
     .record-actions .recording { background:#ffb9b9; color:var(--ink); border-color:#fff; }
+    .voice-choice { margin-top:14px; }
+    .voice-choice label { display:block; margin-bottom:8px; font-weight:650; }
+    .compare-button { width:100%; margin-top:8px; }
     #use-recordings { width:100%; margin-top:18px; }
     .sound-selector { margin:16px 0; }
     .sound-selector label { display:block; font-weight:700; margin-bottom:8px; }
-    .sound-selector select { width:100%; min-height:50px; padding:10px; border:1px solid #888; border-radius:10px; background:#292929; color:var(--text); }
+    .sound-selector select,.voice-choice select { width:100%; min-width:0; min-height:50px; padding:10px; border:1px solid #888; border-radius:10px; background:#292929; color:var(--text); }
     .save-button { width:100%; margin-top:10px; background:var(--text); color:var(--ink); }
     .row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 4px; }
     .row output { color:var(--amber); font-weight:700; white-space:nowrap; }
@@ -151,28 +154,47 @@
       </div>
       <div class="panel" id="recordings-panel">
         <h2 class="section-title">Áudios personalizados</h2>
-        <p class="help">Grave um áudio para cada comando, com até 30 segundos. Eles ficam neste navegador, sem envio à internet. A frequência e a sirene não alteram a gravação.</p>
+        <p class="help">Grave pelo microfone do celular, com até 30 segundos por áudio. A e B ficam neste navegador, sem envio à internet.</p>
+        <p class="help" id="voice-help"><strong>Voz ajustada (experimental):</strong> aproxima a altura média da voz da frequência selecionada e também muda a velocidade da fala. A voz continua contendo várias frequências. Não equivale a um aparelho auditivo. Compare com o original e confirme a compreensão dos comandos com a paciente e a equipe pelo interfone.</p>
         <p id="recording-support" class="help">O microfone só é solicitado ao tocar em “Gravar”.</p>
         <div class="record-card">
-          <h3>Puxar e segurar · repete</h3>
+          <h3>Áudio A · opção 1: puxar e segurar · repete</h3>
           <p id="clip-hold-status" class="help">Carregando gravação…</p>
           <div class="record-actions">
             <button id="record-hold" aria-describedby="clip-hold-status">Gravar puxar</button>
             <button id="listen-hold" aria-describedby="clip-hold-status" disabled>Ouvir puxar</button>
             <button id="delete-hold" aria-describedby="clip-hold-status" disabled>Excluir puxar</button>
           </div>
+          <div class="voice-choice">
+            <label for="treatment-hold">Reprodução do áudio A</label>
+            <select id="treatment-hold" data-config aria-describedby="voice-help shift-hold-status">
+              <option value="original">Voz original</option>
+              <option value="shifted">Voz ajustada à frequência</option>
+            </select>
+            <p id="shift-hold-status" class="help">O original é preservado.</p>
+            <button id="original-hold" class="compare-button" disabled>Comparar com original A</button>
+          </div>
         </div>
         <div class="record-card">
-          <h3>Soltar / respirar · uma vez</h3>
+          <h3>Áudio B · opção 2: soltar / respirar · uma vez</h3>
           <p id="clip-release-status" class="help">Carregando gravação…</p>
           <div class="record-actions">
             <button id="record-release" aria-describedby="clip-release-status">Gravar soltar</button>
             <button id="listen-release" aria-describedby="clip-release-status" disabled>Ouvir soltar</button>
             <button id="delete-release" aria-describedby="clip-release-status" disabled>Excluir soltar</button>
           </div>
+          <div class="voice-choice">
+            <label for="treatment-release">Reprodução do áudio B</label>
+            <select id="treatment-release" data-config aria-describedby="voice-help shift-release-status">
+              <option value="original">Voz original</option>
+              <option value="shifted">Voz ajustada à frequência</option>
+            </select>
+            <p id="shift-release-status" class="help">O original é preservado.</p>
+            <button id="original-release" class="compare-button" disabled>Comparar com original B</button>
+          </div>
         </div>
         <button id="use-recordings" data-config disabled>Usar áudios gravados nos comandos</button>
-        <p class="help">Grave os dois áudios para ativar esta opção. “Ouvir” reproduz uma amostra, uma vez. Na operação, o áudio de puxar repete até você parar; o de soltar toca uma vez.</p>
+        <p class="help">Grave os dois áudios e escolha original ou ajustado para cada um. “Ouvir” usa essa escolha e toca uma vez, com a frequência selecionada. Salve a frequência base para usá-la na operação: A repete até você parar; B toca uma vez.</p>
       </div>
       <div class="panel">
         <div class="row"><label for="volume"><strong>Volume do aplicativo</strong></label><output id="volume-display" for="volume">30%</output></div>
@@ -218,6 +240,7 @@
     const ui = Object.fromEntries(['frequency','volume','guide','duration','test','test-release','sound-pattern','hold','release','save','stop','phase','timer','feedback'].map(id => [id,$(id)]));
     const STORAGE_KEY = 'rm-tone-base-v1';
     const PATTERN_KEY = 'rm-tone-pattern-v1';
+    const VOICE_KEY = 'rm-voice-treatment-v1';
     const PATTERNS = { siren:'Sirene suave', pulse:'Pulsos espaçados', plain:'Tom contínuo', custom:'Áudios gravados' };
     const MAX_CLIP_SECONDS = 30, MAX_CLIP_BYTES = 10 * 1024 * 1024;
     const ATTACK = .03, FADE = .05, MASTER_MAX = .7;
@@ -225,6 +248,7 @@
     let generation = 0, command = null, voice = null, frame = 0, elapsed = 0;
     const voices = new Set();
     const clips = { hold:null, release:null };
+    const treatments = { hold:'original', release:'original' };
     let capture = null, clipsLoading = true, clipBusy = false, dbPromise = null;
 
     // Somente a frequência confirmada é persistida. Estados de reprodução nunca são restaurados.
@@ -237,6 +261,10 @@
       const storedPattern = localStorage.getItem(PATTERN_KEY);
       if (Object.hasOwn(PATTERNS,storedPattern)) pattern = storedPattern;
     } catch (_) { /* Continuar com o padrão desta sessão. */ }
+    try {
+      const saved = JSON.parse(localStorage.getItem(VOICE_KEY));
+      for (const slot of ['hold','release']) if (saved?.[slot] === 'shifted') treatments[slot] = 'shifted';
+    } catch (_) { /* Preferências opcionais: manter a voz original. */ }
     ui.frequency.value = draft;
     ui['sound-pattern'].value = pattern;
     function feedback(message, error = false) { ui.feedback.textContent = message; ui.feedback.classList.toggle('error',error); }
@@ -248,6 +276,7 @@
       $('base-display').textContent = `${base} Hz`;
       $('save-status').textContent = `Base atual: ${base} Hz. ${draft === base ? 'Salve após confirmar a percepção.' : 'A seleção ainda não foi salva.'}`;
       updatePatternDescription();
+      renderRecordings(Boolean(command || capture || clipBusy || clipsLoading));
     }
     function sirenRange(frequency) {
       return { low:Math.max(100,frequency * .85), high:Math.min(1500,frequency * 1.15) };
@@ -257,7 +286,7 @@
       $('pattern-help').textContent = pattern === 'siren'
         ? `Sobe e desce entre ${Math.round(low)} e ${Math.round(high)} Hz, em ciclos de 2 segundos. A frequência base continua sendo ${draft} Hz.`
         : pattern === 'pulse' ? 'Um toque de 0,4 s, seguido de 0,5 s de silêncio, repetindo na frequência selecionada.'
-        : pattern === 'custom' ? 'Puxar repete sua gravação. Soltar reproduz sua outra gravação uma vez. A frequência selecionada não modifica esses áudios.'
+        : pattern === 'custom' ? `A repete no botão de puxar; B toca uma vez no botão de soltar. ${hasShiftedVoice() ? `Voz ajustada usa o alvo selecionado no teste e a base salva (${base} Hz) na operação.` : 'Os dois áudios usam a voz original.'}`
         : 'Um tom constante na frequência selecionada.';
     }
     function setPhase(text, kind = '') {
@@ -273,10 +302,11 @@
     function renderControls() {
       const busy = Boolean(command || capture || clipBusy || clipsLoading);
       const custom = pattern === 'custom';
+      const originalOnly = custom && !hasShiftedVoice();
       document.querySelectorAll('[data-config]').forEach(input => input.disabled = busy);
-      ui.frequency.disabled = busy || custom;
-      ui.save.disabled = busy || custom;
-      document.querySelectorAll('[data-frequency]').forEach(button => button.disabled = busy || custom);
+      ui.frequency.disabled = busy || originalOnly;
+      ui.save.disabled = busy || originalOnly;
+      document.querySelectorAll('[data-frequency]').forEach(button => button.disabled = busy || originalOnly);
       ui.test.disabled = Boolean(capture || clipBusy || clipsLoading || (command && command.kind !== 'test'));
       ui['test-release'].disabled = Boolean(capture || clipBusy || clipsLoading);
       ui.hold.disabled = ui.release.disabled = Boolean(capture || clipBusy || clipsLoading);
@@ -289,11 +319,11 @@
       ui.release.classList.toggle('active',Boolean(command && command.kind === 'release'));
       ui.hold.setAttribute('aria-pressed',String(holding));
       ui.hold.setAttribute('aria-busy',String(Boolean(command && command.kind === 'hold' && !voice)));
-      $('hold-hint').textContent = holding ? 'Toque novamente para silenciar' : `Toque para iniciar · ${PATTERNS[pattern]}`;
+      $('hold-hint').textContent = holding ? 'Toque novamente para silenciar' : custom ? `Áudio A · ${treatments.hold === 'shifted' ? `voz ajustada · alvo ${base} Hz` : 'voz original'} · repete` : `Toque para iniciar · ${PATTERNS[pattern]}`;
       ui['test-release'].classList.toggle('active',Boolean(command && command.kind === 'release' && command.preview));
       $('duration-controls').hidden = !ui.guide.checked;
       document.querySelector('.operation-config').hidden = custom;
-      $('release-hint').textContent = custom ? 'Áudio gravado · toca uma vez' : 'Bip-bip · sinal de liberação';
+      $('release-hint').textContent = custom ? `Áudio B · ${treatments.release === 'shifted' ? `voz ajustada · alvo ${base} Hz` : 'voz original'} · uma vez` : 'Bip-bip · sinal de liberação';
       ui['test-release'].textContent = custom ? 'Testar liberação · áudio gravado' : 'Testar liberação · bip-bip';
       $('release-help').textContent = custom ? 'Ouça o áudio de soltar e compare com o de puxar. Confirme que a paciente distingue os dois.' : 'Compare o bip-bip com o som de puxar, usando a frequência selecionada. Confirme que a paciente distingue os dois.';
       $('timer-help').textContent = custom ? 'Conta desde o início da gravação. O encerramento é manual.' : 'Contagem da sustentação. O encerramento é manual.';
@@ -305,6 +335,18 @@
     }
     function recordingSupported() {
       return Boolean(window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+    }
+    function hasShiftedVoice() { return Object.values(treatments).includes('shifted'); }
+    function voiceAdjustment(reference,target) {
+      // Varispeed altera altura E duração. O limite é uma escolha de implementação,
+      // não um limite clínico; mostrar o resultado real quando o alvo exige mais.
+      const requested = target / reference;
+      const rate = Math.max(.5,Math.min(2,requested));
+      return { rate, actual:reference * rate, limited:Math.abs(rate - requested) > .001 };
+    }
+    function adjustmentDescription(clip,target) {
+      const {rate,actual,limited} = voiceAdjustment(clip.reference,target);
+      return `Voz estimada: ${Math.round(clip.reference)} Hz → aproximadamente ${Math.round(actual)} Hz. Velocidade ${rate.toFixed(2).replace('.',',')}× · duração ${(clip.duration / rate).toFixed(1).replace('.',',')} s.${limited ? ` Alvo de ${target} Hz fora do ajuste de 0,5× a 2×; este é o resultado limitado.` : ''}`;
     }
     function renderRecordings(busy) {
       const ready = Boolean(clips.hold && clips.release);
@@ -318,6 +360,10 @@
         record.classList.toggle('recording',Boolean(r));
         record.textContent = !r ? `Gravar ${name}` : r.phase === 'requesting' ? 'Cancelar' : r.phase === 'processing' ? 'Salvando…' : 'Finalizar';
         $(`listen-${slot}`).disabled = Boolean(capture || clipBusy || clipsLoading || !clip);
+        $(`treatment-${slot}`).value = treatments[slot];
+        $(`original-${slot}`).hidden = treatments[slot] !== 'shifted';
+        $(`original-${slot}`).disabled = Boolean(capture || clipBusy || clipsLoading || !clip);
+        $(`shift-${slot}-status`).textContent = treatments[slot] === 'original' ? 'Voz original, sem mudança de altura ou velocidade.' : clip?.reference ? adjustmentDescription(clip,draft) : 'Toque em “Ouvir” para estimar a altura da voz e conferir o ajuste. O original é preservado; o ajuste é limitado entre 0,5× e 2×.';
         $(`delete-${slot}`).disabled = busy || !clip;
         $(`clip-${slot}-status`).textContent = clipsLoading ? 'Carregando gravação…' : r ? r.phase === 'requesting' ? 'Aguardando permissão do microfone…' : r.phase === 'processing' ? 'Preparando e salvando o áudio…' : `Gravando · ${Math.min(MAX_CLIP_SECONDS,(performance.now() - r.started) / 1000).toFixed(1)} s / 30 s` : clip ? `${clip.duration.toFixed(1)} s · ${clip.persisted ? 'salvo neste navegador' : 'disponível somente nesta sessão'}` : 'Nenhum áudio gravado.';
       }
@@ -344,7 +390,7 @@
         const tx = db.transaction('clips','readwrite');
         if (ticket) ticket.transaction = tx;
         const store = tx.objectStore('clips');
-        if (value) store.put({slot,blob:value.blob,duration:value.duration}); else store.delete(slot);
+        if (value) store.put({slot,blob:value.blob,duration:value.duration,reference:value.reference}); else store.delete(slot);
         tx.oncomplete = () => resolve();
         tx.onerror = tx.onabort = () => reject(tx.error || new Error('Não foi possível salvar neste navegador.'));
       });
@@ -356,7 +402,7 @@
           const request = db.transaction('clips','readonly').objectStore('clips').getAll();
           request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
         });
-        for (const clip of saved) if (Object.hasOwn(clips,clip.slot) && clip.blob instanceof Blob && clip.blob.size > 0 && clip.blob.size <= MAX_CLIP_BYTES && Number.isFinite(clip.duration) && clip.duration >= .2 && clip.duration <= MAX_CLIP_SECONDS + 1) clips[clip.slot] = {...clip,buffer:null,persisted:true};
+        for (const clip of saved) if (Object.hasOwn(clips,clip.slot) && clip.blob instanceof Blob && clip.blob.size > 0 && clip.blob.size <= MAX_CLIP_BYTES && Number.isFinite(clip.duration) && clip.duration >= .2 && clip.duration <= MAX_CLIP_SECONDS + 1) clips[clip.slot] = {...clip,reference:Number.isFinite(clip.reference) && clip.reference >= 60 && clip.reference <= 500 ? clip.reference : null,buffer:null,persisted:true};
       } catch (_) { feedback('Gravações disponíveis somente nesta sessão: o armazenamento local não está acessível.'); }
       if (pattern === 'custom' && !(clips.hold && clips.release)) {
         pattern = 'siren'; ui['sound-pattern'].value = pattern;
@@ -421,7 +467,9 @@
             if (!Number.isFinite(buffer.duration) || buffer.duration < .2 || buffer.duration > MAX_CLIP_SECONDS + 1) throw new Error('Grave um áudio entre 0,2 e 30 segundos.');
             if (capture !== r) return;
             softenClipEdges(buffer);
-            const clip = {blob,buffer,duration:buffer.duration,persisted:false};
+            const reference = await estimateVoicePitch(buffer,() => capture !== r);
+            if (capture !== r) return;
+            const clip = {blob,buffer,reference,duration:buffer.duration,persisted:false};
             try { await writeClip(slot,clip,r); clip.persisted = true; } catch (_) { /* Manter o áudio em memória se o armazenamento falhar. */ }
             if (capture !== r) return;
             clips[slot] = clip; capture = null; renderControls();
@@ -480,6 +528,67 @@
         softenClipEdges(decoded); clip.buffer = decoded;
       }
       return clip.buffer;
+    }
+
+    // Estimativa da frequência fundamental em trechos sonoros da gravação.
+    // Diferença normalizada por período (YIN simplificado), mediana de até 60
+    // janelas. Não é audiometria: silêncio, ruído e voz instável podem ser rejeitados.
+    async function estimateVoicePitch(buffer,cancelled) {
+      const check = () => { if (cancelled()) throw new Error('Preparação cancelada.'); };
+      const yieldUI = async () => { await new Promise(resolve => setTimeout(resolve,0)); check(); };
+      await yieldUI();
+      const sampleRate = 4000, length = Math.floor(buffer.duration * sampleRate);
+      const mono = new Float32Array(length), channels = [];
+      for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
+      const stride = buffer.sampleRate / sampleRate;
+      for (let i = 0; i < length; i++) {
+        const a = Math.floor(i * stride), b = Math.min(buffer.length,Math.max(a + 1,Math.floor((i + 1) * stride)));
+        let sum = 0;
+        for (const channel of channels) for (let j = a; j < b; j++) sum += channel[j];
+        mono[i] = sum / ((b - a) * channels.length);
+      }
+      const windowSize = 480, maxLag = 66, minLag = 8;
+      if (length < windowSize) return null;
+      const count = Math.min(60,Math.floor((length - windowSize) / 160) + 1), pitches = [];
+      const difference = new Float64Array(maxLag + 1);
+      for (let frame = 0; frame < count; frame++) {
+        if (frame % 8 === 0) await yieldUI();
+        const start = count === 1 ? 0 : Math.round(frame * (length - windowSize) / (count - 1));
+        let mean = 0, variance = 0;
+        for (let i = 0; i < windowSize; i++) mean += mono[start + i];
+        mean /= windowSize;
+        for (let i = 0; i < windowSize; i++) variance += (mono[start + i] - mean) ** 2;
+        if (Math.sqrt(variance / windowSize) < .005) continue;
+        let cumulative = 0;
+        for (let lag = 1; lag <= maxLag; lag++) {
+          let distance = 0;
+          for (let i = 0; i < windowSize - maxLag; i++) distance += (mono[start + i] - mono[start + i + lag]) ** 2;
+          cumulative += distance;
+          difference[lag] = cumulative > 1e-12 ? distance * lag / cumulative : 1;
+        }
+        for (let lag = minLag; lag < maxLag; lag++) {
+          if (difference[lag] >= .18) continue;
+          while (lag < maxLag - 1 && difference[lag + 1] < difference[lag]) lag++;
+          const a = difference[lag - 1], b = difference[lag], c = difference[lag + 1];
+          const denominator = a - 2 * b + c;
+          const offset = Math.abs(denominator) > 1e-12 ? Math.max(-.5,Math.min(.5,.5 * (a - c) / denominator)) : 0;
+          const pitch = sampleRate / (lag + offset);
+          if (pitch >= 60 && pitch <= 500) pitches.push(pitch);
+          break;
+        }
+      }
+      check();
+      if (pitches.length < 2) return null;
+      pitches.sort((a,b) => a - b);
+      return pitches[Math.floor(pitches.length / 2)];
+    }
+    async function getClipPlayback(slot,target,token,forceOriginal) {
+      const buffer = await getClipBuffer(slot), clip = clips[slot];
+      if (treatments[slot] !== 'shifted' || forceOriginal) return {buffer,rate:1,shifted:false};
+      if (!clip.reference) clip.reference = await estimateVoicePitch(buffer,() => token !== generation);
+      if (!clip.reference) throw new Error('Não foi possível estimar a altura da voz. Grave uma fala mais clara ou escolha “Voz original”.');
+      const adjustment = voiceAdjustment(clip.reference,target);
+      return {buffer,...adjustment,shifted:true};
     }
 
     // Um único contexto. O click ocorre após o toque terminar, com ativação do usuário
@@ -604,7 +713,7 @@
         pulse.start(start); v.modSources.push(pulse);
       }
     }
-    async function startSound(kind,preview = false,clipPreview = null) {
+    async function startSound(kind,preview = false,clipPreview = null,forceOriginal = false) {
       if (capture || clipsLoading || clipBusy) return;
       // Encerra o anterior antes de iniciar outro; o verde pode preemptar qualquer comando.
       const hadVoice = voices.size > 0;
@@ -616,19 +725,22 @@
       const frequency = kind === 'test' || preview ? draft : base;
       const selectedPattern = useClip ? 'custom' : kind === 'release' ? 'plain' : pattern;
       const toneFrequency = frequency * (kind === 'release' ? 1.4 : 1);
-      command = { kind, token, preview, clipPreview, guideSeconds, start:0, holdStart:Infinity };
+      command = { kind, token, preview, clipPreview, forceOriginal, guideSeconds, start:0, holdStart:Infinity };
       renderControls(); feedback('Preparando áudio…');
       try {
         await ensureAudio();
-        const clipBuffer = useClip ? await getClipBuffer(slot) : null;
+        const clipPlayback = useClip ? await getClipPlayback(slot,frequency,token,forceOriginal) : null;
+        const clipBuffer = clipPlayback?.buffer;
         if (token !== generation || !command) return;
         if (document.hidden) { stopSound('Página inativa. Acione novamente para retomar.',true); return; }
+        if (audioCtx.state !== 'running') { stopSound('Áudio interrompido. Acione novamente para retomar.',true); return; }
         // Preparar o buffer antes de marcar o início, evitando atraso no primeiro pulso.
         if (selectedPattern === 'pulse') getPulseBuffer();
         const start = audioCtx.currentTime + (hadVoice ? FADE + .01 : .005);
         const osc = useClip ? audioCtx.createBufferSource() : audioCtx.createOscillator(), gain = audioCtx.createGain();
         if (useClip) {
           osc.buffer = clipBuffer;
+          osc.playbackRate.setValueAtTime(clipPlayback.rate,start);
           osc.loop = !clipPreview && kind !== 'release';
         } else {
           osc.type = 'triangle';
@@ -645,7 +757,7 @@
         if (useClip) {
           ramp(0,1,start,start + .005);
           if (!osc.loop) {
-            end = start + clipBuffer.duration;
+            end = start + clipBuffer.duration / clipPlayback.rate;
             ramp(1,1,start + .005,end - .005);
             ramp(1,0,end - .005,end); v.tail = 0;
           }
@@ -677,7 +789,7 @@
         setPhase(kind === 'test' ? 'Testando' : kind === 'release' ? 'Liberando' : guideSeconds ? 'Inspirando' : 'Sustentando',kind === 'release' ? 'release' : 'active');
         $('inspiration-progress').max = guideSeconds || 1;
         renderControls(); tick();
-        feedback(useClip ? `Áudio gravado de ${slot === 'hold' ? 'puxar' : 'soltar'} · ${osc.loop ? 'repetindo até você parar' : 'reproduzindo uma vez'}.` : kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
+        feedback(useClip ? `Áudio ${slot === 'hold' ? 'A' : 'B'} · ${osc.loop ? 'repetindo até você parar' : 'reproduzindo uma vez'}. ${clipPlayback.shifted ? adjustmentDescription(clips[slot],frequency) : 'Voz original.'}` : kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
       } catch (error) {
         if (token === generation) { stopSound(); feedback(error.message || 'Falha ao iniciar áudio. Tente novamente.',true); }
       }
@@ -748,8 +860,19 @@
     for (const slot of ['hold','release']) {
       $(`record-${slot}`).addEventListener('click',() => beginCapture(slot));
       $(`listen-${slot}`).addEventListener('click',() => {
-        if (command?.clipPreview === slot) stopSound('Amostra encerrada.');
+        if (command?.clipPreview === slot && !command.forceOriginal) stopSound('Amostra encerrada.');
         else startSound(slot === 'hold' ? 'test' : 'release',true,slot);
+      });
+      $(`original-${slot}`).addEventListener('click',() => {
+        if (command?.clipPreview === slot && command.forceOriginal) stopSound('Amostra encerrada.');
+        else startSound(slot === 'hold' ? 'test' : 'release',true,slot,true);
+      });
+      $(`treatment-${slot}`).addEventListener('change',event => {
+        if (command || capture || clipBusy || clipsLoading) return;
+        treatments[slot] = event.target.value === 'shifted' ? 'shifted' : 'original';
+        renderControls(); updatePatternDescription();
+        try { localStorage.setItem(VOICE_KEY,JSON.stringify(treatments)); feedback('Preferências de voz salvas. Compare A e B antes de usar.'); }
+        catch (_) { feedback('Preferências de voz definidas somente nesta sessão.'); }
       });
       $(`delete-${slot}`).addEventListener('click',() => deleteClip(slot));
     }
