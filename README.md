@@ -10,12 +10,28 @@ Aplicação responsiva para gerar sinais sonoros de comandos respiratórios, com
 2. Confirme a percepção pelo caminho de áudio que será usado e clique em **Salvar frequência base**.
 3. Na aba **Operação**, o guia opcional sobe o volume durante 1 a 6 segundos antes da sustentação.
 4. Um toque em **PUXAR E SEGURAR** inicia o padrão escolhido, repetindo até outro toque no mesmo botão ou outro comando. O cronômetro começa na sustentação.
-5. Um toque em **SOLTAR / RESPIRAR** interrompe o tom anterior e reproduz a sequência de dois pulsos em 1,4 vezes a frequência base. Tocar novamente reinicia a sequência.
+5. Um toque em **SOLTAR / RESPIRAR** interrompe o comando anterior e reproduz o bip-bip ou, no modo **Áudios gravados**, a gravação de soltar uma vez. Tocar novamente reinicia a reprodução.
 6. **Parar som** ou a tecla **Escape** interrompe a reprodução.
 
 Todos os comandos funcionam por clique ou toque, sem manter o botão pressionado. No teclado, use **Espaço** ou **Enter** com o botão em foco. O áudio é desbloqueado no clique; quando disponível, a sessão de áudio é configurada como reprodução de mídia no iOS. Sair da página ou perder o foco encerra o som; retornar não retoma a reprodução automaticamente.
 
-A frequência confirmada e o padrão escolhido ficam salvos no navegador quando o armazenamento local está disponível. A aplicação não coleta nem transmite dados da paciente.
+A frequência confirmada e o padrão escolhido ficam salvos no navegador quando o armazenamento local está disponível. As gravações são armazenadas localmente no IndexedDB; não há envio de áudio nem dados da paciente a servidores.
+
+## Áudios personalizados
+
+Na aba **Ajuste**, em **Áudios personalizados**:
+
+1. Toque em **Gravar puxar**, permita o microfone e fale o comando. Toque em **Finalizar** para registrar.
+2. Repita com **Gravar soltar**. Cada gravação pode ter até 30 segundos.
+3. Use **Ouvir puxar** e **Ouvir soltar** para conferir cada amostra uma vez. Uma nova gravação substitui a anterior somente após ser validada; cancelar mantém a anterior.
+4. Toque em **Usar áudios gravados nos comandos**, disponível após registrar os dois áudios.
+5. Na operação, **PUXAR E SEGURAR** repete o áudio completo até outro toque ou comando. **SOLTAR / RESPIRAR** interrompe essa repetição e reproduz o outro áudio uma vez. O cronômetro conta desde o início da gravação de puxar; o guia de volume dos tons fica oculto neste modo.
+
+**Excluir puxar** e **Excluir soltar** removem o respectivo áudio deste navegador. Ao excluir um áudio usado pelo modo personalizado, o app volta à sirene. A frequência e os padrões de tom não modificam a voz gravada; o controle de volume continua disponível.
+
+O navegador pede o microfone somente ao gravar, usando HTTPS (como no GitHub Pages) ou localhost. O formato é escolhido entre os suportados pelo navegador, incluindo MP4 ou WebM. O microfone é desligado ao terminar, cancelar ou sair da página. **Parar som** e **Escape** também cancelam uma gravação em andamento.
+
+Os áudios pertencem àquele navegador e aparelho, não ao repositório público. Eles não são sincronizados entre dispositivos e podem desaparecer ao limpar os dados do navegador. Se o armazenamento falhar, o app informa que o áudio vale somente para a sessão atual. Gravações precisam ser testadas no aparelho e interfone usados no exame.
 
 ## Padrões sonoros
 
@@ -23,7 +39,7 @@ A frequência confirmada e o padrão escolhido ficam salvos no navegador quando 
 - **Pulsos espaçados**: um toque de 0,4 segundo seguido de 0,5 segundo de silêncio, repetindo na frequência base. Os ataques e saídas são suaves.
 - **Tom contínuo**: sinal constante na frequência base.
 
-O botão **Testar liberação · bip-bip** permite comparar, na aba Ajuste, o sinal de soltar com o de puxar usando a frequência selecionada. A operação usa a frequência base salva. O sinal de liberação permanece uma sequência finita de dois pulsos de 0,25 segundo, separados por 0,18 segundo, em 1,4 vezes a frequência base, para ter um padrão próprio.
+O botão **Testar liberação · bip-bip** permite comparar, na aba Ajuste, o sinal de soltar com o de puxar usando a frequência selecionada. A operação usa a frequência base salva. Nos modos de tons, a liberação é uma sequência finita de dois pulsos de 0,25 segundo, separados por 0,18 segundo, em 1,4 vezes a frequência base. No modo **Áudios gravados**, os dois comandos usam suas respectivas gravações.
 
 Esses padrões mudam somente o som dos comandos manuais. Não automatizam a rotina respiratória. A distinção em meio ao ruído da RM precisa ser confirmada com a paciente e a equipe pelo interfone usado no exame.
 

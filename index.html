@@ -53,6 +53,12 @@
     .test-button { width:100%; min-height:66px; background:#343434; border:1px solid #888; }
     .test-button.active { color:var(--ink); background:var(--amber); }
     .release-preview { margin-top:10px; min-height:48px; border-color:var(--green); color:var(--green); }
+    .record-card { border-top:1px solid var(--line); margin-top:18px; padding-top:16px; }
+    .record-card h3 { font-size:.95rem; margin:0 0 6px; }
+    .record-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
+    .record-actions button { font-size:.8rem; padding:8px 4px; }
+    .record-actions .recording { background:#ffb9b9; color:var(--ink); border-color:#fff; }
+    #use-recordings { width:100%; margin-top:18px; }
     .sound-selector { margin:16px 0; }
     .sound-selector label { display:block; font-weight:700; margin-bottom:8px; }
     .sound-selector select { width:100%; min-height:50px; padding:10px; border:1px solid #888; border-radius:10px; background:#292929; color:var(--text); }
@@ -132,6 +138,7 @@
             <option value="siren">Sirene suave</option>
             <option value="pulse">Pulsos espaçados</option>
             <option value="plain">Tom contínuo</option>
+            <option id="custom-option" value="custom" disabled>Áudios gravados</option>
           </select>
           <p id="pattern-help" class="help">Sirene com variação suave ao redor da frequência selecionada.</p>
         </div>
@@ -141,6 +148,31 @@
         <p id="release-help" class="help">Compare o bip-bip com o som de puxar, usando a frequência selecionada. Confirme que a paciente distingue os dois.</p>
         <button id="save" data-config class="save-button">Salvar frequência base</button>
         <p id="save-status" class="help">Base atual: 220 Hz. Salve após confirmar a percepção.</p>
+      </div>
+      <div class="panel" id="recordings-panel">
+        <h2 class="section-title">Áudios personalizados</h2>
+        <p class="help">Grave um áudio para cada comando, com até 30 segundos. Eles ficam neste navegador, sem envio à internet. A frequência e a sirene não alteram a gravação.</p>
+        <p id="recording-support" class="help">O microfone só é solicitado ao tocar em “Gravar”.</p>
+        <div class="record-card">
+          <h3>Puxar e segurar · repete</h3>
+          <p id="clip-hold-status" class="help">Carregando gravação…</p>
+          <div class="record-actions">
+            <button id="record-hold" aria-describedby="clip-hold-status">Gravar puxar</button>
+            <button id="listen-hold" aria-describedby="clip-hold-status" disabled>Ouvir puxar</button>
+            <button id="delete-hold" aria-describedby="clip-hold-status" disabled>Excluir puxar</button>
+          </div>
+        </div>
+        <div class="record-card">
+          <h3>Soltar / respirar · uma vez</h3>
+          <p id="clip-release-status" class="help">Carregando gravação…</p>
+          <div class="record-actions">
+            <button id="record-release" aria-describedby="clip-release-status">Gravar soltar</button>
+            <button id="listen-release" aria-describedby="clip-release-status" disabled>Ouvir soltar</button>
+            <button id="delete-release" aria-describedby="clip-release-status" disabled>Excluir soltar</button>
+          </div>
+        </div>
+        <button id="use-recordings" data-config disabled>Usar áudios gravados nos comandos</button>
+        <p class="help">Grave os dois áudios para ativar esta opção. “Ouvir” reproduz uma amostra, uma vez. Na operação, o áudio de puxar repete até você parar; o de soltar toca uma vez.</p>
       </div>
       <div class="panel">
         <div class="row"><label for="volume"><strong>Volume do aplicativo</strong></label><output id="volume-display" for="volume">30%</output></div>
@@ -157,10 +189,10 @@
           <div id="references" class="references" aria-label="Referências visuais de tempo"><span id="ref10">10 s</span><span id="ref15">15 s</span></div>
           <div id="guide-progress" class="guide-progress" hidden><span id="guide-text" class="help">Inspirando</span><progress id="inspiration-progress" max="3" value="0" aria-label="Progresso da inspiração"></progress></div>
         </div>
-        <p class="help">Contagem da sustentação. O encerramento é manual.</p>
+        <p id="timer-help" class="help">Contagem da sustentação. O encerramento é manual.</p>
       </div>
       <button id="hold" class="command hold" aria-pressed="false" aria-describedby="mode-note"><strong>PUXAR E SEGURAR</strong><small id="hold-hint">Toque para iniciar · Sirene suave</small></button>
-      <button id="release" class="command release-button"><strong>SOLTAR / RESPIRAR</strong><small>Bip-bip · sinal de liberação</small></button>
+      <button id="release" class="command release-button"><strong>SOLTAR / RESPIRAR</strong><small id="release-hint">Bip-bip · sinal de liberação</small></button>
       <p id="mode-note" class="help mode-note">Toque novamente no âmbar para silenciar. Use o verde para sinalizar a liberação.</p>
       <div class="panel operation-config">
         <h2 class="section-title">Inspiração</h2>
@@ -171,7 +203,7 @@
           <input id="duration" data-config type="range" min="1" max="6" step="1" value="3" aria-valuetext="3 segundos">
         </div>
       </div>
-      <p class="help notice">Os sinais e os tempos devem seguir a orientação da equipe. Confirme que a paciente reconhece os dois padrões nas condições de uso do interfone. A liberação é sempre o bip-bip, em 1,4 × a base.</p>
+      <p class="help notice">Os sinais e os tempos devem seguir a orientação da equipe. Confirme que a paciente reconhece os dois comandos nas condições de uso do interfone.</p>
     </section>
     <p id="feedback" class="feedback" role="status" aria-live="polite" aria-atomic="true">Pronto para ajustar. O som só começa com sua ação.</p>
     <span id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
@@ -186,11 +218,14 @@
     const ui = Object.fromEntries(['frequency','volume','guide','duration','test','test-release','sound-pattern','hold','release','save','stop','phase','timer','feedback'].map(id => [id,$(id)]));
     const STORAGE_KEY = 'rm-tone-base-v1';
     const PATTERN_KEY = 'rm-tone-pattern-v1';
-    const PATTERNS = { siren:'Sirene suave', pulse:'Pulsos espaçados', plain:'Tom contínuo' };
+    const PATTERNS = { siren:'Sirene suave', pulse:'Pulsos espaçados', plain:'Tom contínuo', custom:'Áudios gravados' };
+    const MAX_CLIP_SECONDS = 30, MAX_CLIP_BYTES = 10 * 1024 * 1024;
     const ATTACK = .03, FADE = .05, MASTER_MAX = .7;
     let base = 220, draft = 220, pattern = 'siren', audioCtx = null, master = null, pulseBuffer = null;
     let generation = 0, command = null, voice = null, frame = 0, elapsed = 0;
     const voices = new Set();
+    const clips = { hold:null, release:null };
+    let capture = null, clipsLoading = true, clipBusy = false, dbPromise = null;
 
     // Somente a frequência confirmada é persistida. Estados de reprodução nunca são restaurados.
     try {
@@ -222,6 +257,7 @@
       $('pattern-help').textContent = pattern === 'siren'
         ? `Sobe e desce entre ${Math.round(low)} e ${Math.round(high)} Hz, em ciclos de 2 segundos. A frequência base continua sendo ${draft} Hz.`
         : pattern === 'pulse' ? 'Um toque de 0,4 s, seguido de 0,5 s de silêncio, repetindo na frequência selecionada.'
+        : pattern === 'custom' ? 'Puxar repete sua gravação. Soltar reproduz sua outra gravação uma vez. A frequência selecionada não modifica esses áudios.'
         : 'Um tom constante na frequência selecionada.';
     }
     function setPhase(text, kind = '') {
@@ -235,9 +271,15 @@
       $('audio-status').textContent = !audioCtx ? 'Áudio não iniciado' : ready ? 'Áudio pronto' : 'Áudio pausado';
     }
     function renderControls() {
-      const busy = Boolean(command);
+      const busy = Boolean(command || capture || clipBusy || clipsLoading);
+      const custom = pattern === 'custom';
       document.querySelectorAll('[data-config]').forEach(input => input.disabled = busy);
-      ui.test.disabled = busy && command.kind !== 'test';
+      ui.frequency.disabled = busy || custom;
+      ui.save.disabled = busy || custom;
+      document.querySelectorAll('[data-frequency]').forEach(button => button.disabled = busy || custom);
+      ui.test.disabled = Boolean(capture || clipBusy || clipsLoading || (command && command.kind !== 'test'));
+      ui['test-release'].disabled = Boolean(capture || clipBusy || clipsLoading);
+      ui.hold.disabled = ui.release.disabled = Boolean(capture || clipBusy || clipsLoading);
       const testing = Boolean(command && command.kind === 'test');
       const holding = Boolean(command && command.kind === 'hold');
       ui.test.classList.toggle('active',testing);
@@ -250,6 +292,194 @@
       $('hold-hint').textContent = holding ? 'Toque novamente para silenciar' : `Toque para iniciar · ${PATTERNS[pattern]}`;
       ui['test-release'].classList.toggle('active',Boolean(command && command.kind === 'release' && command.preview));
       $('duration-controls').hidden = !ui.guide.checked;
+      document.querySelector('.operation-config').hidden = custom;
+      $('release-hint').textContent = custom ? 'Áudio gravado · toca uma vez' : 'Bip-bip · sinal de liberação';
+      ui['test-release'].textContent = custom ? 'Testar liberação · áudio gravado' : 'Testar liberação · bip-bip';
+      $('release-help').textContent = custom ? 'Ouça o áudio de soltar e compare com o de puxar. Confirme que a paciente distingue os dois.' : 'Compare o bip-bip com o som de puxar, usando a frequência selecionada. Confirme que a paciente distingue os dois.';
+      $('timer-help').textContent = custom ? 'Conta desde o início da gravação. O encerramento é manual.' : 'Contagem da sustentação. O encerramento é manual.';
+      renderRecordings(busy);
+    }
+
+    function setAudioSession(type) {
+      try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (_) { /* API opcional. */ }
+    }
+    function recordingSupported() {
+      return Boolean(window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+    }
+    function renderRecordings(busy) {
+      const ready = Boolean(clips.hold && clips.release);
+      $('custom-option').disabled = !ready;
+      $('use-recordings').disabled = busy || !ready;
+      for (const slot of ['hold','release']) {
+        const r = capture?.slot === slot ? capture : null, clip = clips[slot];
+        const name = slot === 'hold' ? 'puxar' : 'soltar';
+        const record = $(`record-${slot}`);
+        record.disabled = r ? r.phase === 'processing' : busy || !recordingSupported();
+        record.classList.toggle('recording',Boolean(r));
+        record.textContent = !r ? `Gravar ${name}` : r.phase === 'requesting' ? 'Cancelar' : r.phase === 'processing' ? 'Salvando…' : 'Finalizar';
+        $(`listen-${slot}`).disabled = Boolean(capture || clipBusy || clipsLoading || !clip);
+        $(`delete-${slot}`).disabled = busy || !clip;
+        $(`clip-${slot}-status`).textContent = clipsLoading ? 'Carregando gravação…' : r ? r.phase === 'requesting' ? 'Aguardando permissão do microfone…' : r.phase === 'processing' ? 'Preparando e salvando o áudio…' : `Gravando · ${Math.min(MAX_CLIP_SECONDS,(performance.now() - r.started) / 1000).toFixed(1)} s / 30 s` : clip ? `${clip.duration.toFixed(1)} s · ${clip.persisted ? 'salvo neste navegador' : 'disponível somente nesta sessão'}` : 'Nenhum áudio gravado.';
+      }
+      $('recording-support').textContent = recordingSupported() ? 'O microfone só é solicitado ao tocar em “Gravar”.' : 'Para gravar, abra no Safari ou em outro navegador com microfone e gravação, usando HTTPS ou localhost.';
+    }
+
+    // IndexedDB guarda apenas os dois Blobs localmente; não há upload de gravações.
+    function openClipDB() {
+      if (!dbPromise) dbPromise = new Promise((resolve,reject) => {
+        if (!window.indexedDB) { reject(new Error('Armazenamento local indisponível.')); return; }
+        const request = indexedDB.open('rm-local-recordings-v1',1);
+        let rejected = false;
+        request.onupgradeneeded = () => request.result.createObjectStore('clips',{keyPath:'slot'});
+        request.onsuccess = () => { if (rejected) request.result.close(); else resolve(request.result); };
+        request.onerror = () => { rejected = true; reject(request.error); };
+        request.onblocked = () => { rejected = true; reject(new Error('Armazenamento bloqueado por outra aba.')); };
+      }).catch(error => { dbPromise = null; throw error; });
+      return dbPromise;
+    }
+    async function writeClip(slot,value,ticket = null) {
+      const db = await openClipDB();
+      if (ticket && capture !== ticket) throw new Error('Gravação cancelada.');
+      await new Promise((resolve,reject) => {
+        const tx = db.transaction('clips','readwrite');
+        if (ticket) ticket.transaction = tx;
+        const store = tx.objectStore('clips');
+        if (value) store.put({slot,blob:value.blob,duration:value.duration}); else store.delete(slot);
+        tx.oncomplete = () => resolve();
+        tx.onerror = tx.onabort = () => reject(tx.error || new Error('Não foi possível salvar neste navegador.'));
+      });
+    }
+    async function loadClips() {
+      try {
+        const db = await openClipDB();
+        const saved = await new Promise((resolve,reject) => {
+          const request = db.transaction('clips','readonly').objectStore('clips').getAll();
+          request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+        });
+        for (const clip of saved) if (Object.hasOwn(clips,clip.slot) && clip.blob instanceof Blob && clip.blob.size > 0 && clip.blob.size <= MAX_CLIP_BYTES && Number.isFinite(clip.duration) && clip.duration >= .2 && clip.duration <= MAX_CLIP_SECONDS + 1) clips[clip.slot] = {...clip,buffer:null,persisted:true};
+      } catch (_) { feedback('Gravações disponíveis somente nesta sessão: o armazenamento local não está acessível.'); }
+      if (pattern === 'custom' && !(clips.hold && clips.release)) {
+        pattern = 'siren'; ui['sound-pattern'].value = pattern;
+        feedback('Os dois áudios gravados não estão disponíveis. Selecione um padrão ou grave novamente.');
+      }
+      clipsLoading = false; updatePatternDescription(); renderControls();
+    }
+    function cleanCapture(r) {
+      clearInterval(r.interval); clearTimeout(r.timeout);
+      r.stream?.getTracks().forEach(track => track.stop());
+      if (!capture || capture === r) setAudioSession('playback');
+    }
+    function cancelCapture(message = 'Gravação cancelada. O áudio anterior foi mantido.') {
+      const r = capture;
+      if (!r) return;
+      capture = null; r.discard = true;
+      try { r.transaction?.abort(); } catch (_) { /* A transação pode já ter terminado. */ }
+      if (r.recorder && r.recorder.state !== 'inactive') { try { r.recorder.stop(); } catch (_) { /* Já encerrado. */ } }
+      cleanCapture(r); renderControls(); feedback(message);
+    }
+    function finishCapture() {
+      const r = capture;
+      if (!r || r.phase !== 'recording') return;
+      r.phase = 'processing'; clearInterval(r.interval); clearTimeout(r.timeout); renderControls();
+      try { r.recorder.stop(); }
+      catch (_) { cancelCapture('Não foi possível finalizar a gravação. Tente novamente.'); }
+    }
+    async function beginCapture(slot) {
+      if (capture) {
+        if (capture.slot === slot) { if (capture.phase === 'recording') finishCapture(); else if (capture.phase === 'requesting') cancelCapture(); }
+        return;
+      }
+      if (clipsLoading || clipBusy || !recordingSupported()) return;
+      stopSound(undefined,true);
+      const r = {slot,phase:'requesting',chunks:[],bytes:0,discard:false,stream:null};
+      capture = r; renderControls(); feedback('Permita o microfone para gravar este comando.');
+      try {
+        await ensureAudio();
+        if (capture !== r) return;
+        setAudioSession('play-and-record');
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+        if (capture !== r || document.hidden) { stream.getTracks().forEach(track => track.stop()); if (capture === r) cancelCapture(); return; }
+        r.stream = stream;
+        const mime = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
+        r.recorder = new MediaRecorder(stream,mime ? {mimeType:mime} : undefined);
+        stream.getAudioTracks().forEach(track => track.addEventListener('ended',() => {
+          if (capture === r && r.phase === 'recording') cancelCapture('Microfone interrompido. O áudio anterior foi mantido.');
+        }));
+        r.recorder.ondataavailable = event => {
+          if (event.data.size) { r.chunks.push(event.data); r.bytes += event.data.size; }
+          if (r.bytes > MAX_CLIP_BYTES && capture === r) cancelCapture('Áudio muito grande. Grave um comando mais curto.');
+        };
+        r.recorder.onerror = () => { if (capture === r) cancelCapture('Falha ao gravar. O áudio anterior foi mantido.'); else cleanCapture(r); };
+        r.recorder.onstop = async () => {
+          cleanCapture(r);
+          if (capture !== r || r.discard) return;
+          r.phase = 'processing'; renderControls();
+          try {
+            const blob = new Blob(r.chunks,{type:r.recorder.mimeType || r.chunks[0]?.type || 'application/octet-stream'});
+            if (!blob.size || blob.size > MAX_CLIP_BYTES) throw new Error('Não foi capturado um áudio válido. Grave novamente.');
+            const buffer = await audioCtx.decodeAudioData(await blob.arrayBuffer());
+            if (!Number.isFinite(buffer.duration) || buffer.duration < .2 || buffer.duration > MAX_CLIP_SECONDS + 1) throw new Error('Grave um áudio entre 0,2 e 30 segundos.');
+            if (capture !== r) return;
+            softenClipEdges(buffer);
+            const clip = {blob,buffer,duration:buffer.duration,persisted:false};
+            try { await writeClip(slot,clip,r); clip.persisted = true; } catch (_) { /* Manter o áudio em memória se o armazenamento falhar. */ }
+            if (capture !== r) return;
+            clips[slot] = clip; capture = null; renderControls();
+            feedback(`Áudio de ${slot === 'hold' ? 'puxar' : 'soltar'} ${clip.persisted ? 'salvo neste navegador' : 'registrado somente nesta sessão'}. Ouça para conferir.`);
+          } catch (error) {
+            if (capture === r) { capture = null; renderControls(); feedback(error.name === 'EncodingError' ? 'Não foi possível ler esta gravação. Grave novamente; o áudio anterior foi mantido.' : error.message || 'Não foi possível ler a gravação. O áudio anterior foi mantido.',true); }
+          }
+        };
+        r.started = performance.now(); r.phase = 'recording'; r.recorder.start(250);
+        r.interval = setInterval(() => { if (capture === r) renderRecordings(true); },100);
+        r.timeout = setTimeout(finishCapture,MAX_CLIP_SECONDS * 1000);
+        renderControls(); feedback('Gravando. Toque em “Finalizar” quando terminar.');
+      } catch (error) {
+        if (capture === r) {
+          cleanCapture(r); capture = null; renderControls();
+          const message = error.name === 'NotAllowedError' ? 'Microfone não autorizado. Permita o acesso ao microfone no navegador e tente novamente.' : error.name === 'NotFoundError' ? 'Nenhum microfone disponível neste aparelho.' : 'Não foi possível iniciar a gravação. Tente novamente no Safari ou em outro navegador compatível.';
+          feedback(message,true);
+        }
+      }
+    }
+    async function deleteClip(slot) {
+      if (command || capture || clipsLoading || clipBusy || !clips[slot]) return;
+      clipBusy = true; renderControls();
+      try {
+        // Se havia cópia persistida, confirmar a exclusão antes de removê-la da tela.
+        if (clips[slot].persisted) await writeClip(slot,null);
+        clips[slot] = null;
+        if (pattern === 'custom') selectPattern('siren');
+        feedback('Gravação excluída deste navegador.');
+      } catch (_) { feedback('Não foi possível excluir a gravação salva. Tente novamente.',true); }
+      finally { clipBusy = false; renderControls(); }
+    }
+    function selectPattern(value) {
+      if (value === 'custom' && !(clips.hold && clips.release)) return;
+      pattern = value; ui['sound-pattern'].value = pattern;
+      updatePatternDescription(); renderControls();
+      try { localStorage.setItem(PATTERN_KEY,pattern); feedback(`Padrão salvo: ${PATTERNS[pattern]}. Teste os dois sinais antes de usar.`); }
+      catch (_) { feedback(`Padrão definido nesta sessão: ${PATTERNS[pattern]}.`); }
+    }
+    function softenClipEdges(buffer) {
+      // Apenas 5 ms nas bordas para evitar estalos ao repetir, sem mudar a voz ou a duração.
+      const edge = Math.min(Math.round(buffer.sampleRate * .005),Math.floor(buffer.length / 2));
+      for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+        const samples = buffer.getChannelData(channel);
+        for (let i = 0; i < edge; i++) { const scale = i / Math.max(1,edge - 1); samples[i] *= scale; samples[samples.length - 1 - i] *= scale; }
+      }
+    }
+    async function getClipBuffer(slot) {
+      const clip = clips[slot];
+      if (!clip) throw new Error('Grave o áudio deste comando antes de usá-lo.');
+      if (!clip.buffer) {
+        let decoded;
+        try { decoded = await audioCtx.decodeAudioData(await clip.blob.arrayBuffer()); }
+        catch (_) { throw new Error('Não foi possível reproduzir esta gravação. Grave este comando novamente neste navegador.'); }
+        if (!Number.isFinite(decoded.duration) || decoded.duration < .2 || decoded.duration > MAX_CLIP_SECONDS + 1) throw new Error('Gravação inválida. Grave este comando novamente.');
+        softenClipEdges(decoded); clip.buffer = decoded;
+      }
+      return clip.buffer;
     }
 
     // Um único contexto. O click ocorre após o toque terminar, com ativação do usuário
@@ -257,7 +487,7 @@
     async function ensureAudio() {
       // Quando disponível, usar a sessão de mídia do iOS, inclusive no modo silencioso.
       // A API é opcional: uma falha nesta preferência não impede o Web Audio padrão.
-      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (_) { /* API opcional. */ }
+      setAudioSession('playback');
       if (!audioCtx) {
         const Context = window.AudioContext || window.webkitAudioContext;
         if (!Context) throw new Error('Este navegador não oferece Web Audio. Abra em um navegador compatível.');
@@ -374,27 +604,36 @@
         pulse.start(start); v.modSources.push(pulse);
       }
     }
-    async function startSound(kind,preview = false) {
+    async function startSound(kind,preview = false,clipPreview = null) {
+      if (capture || clipsLoading || clipBusy) return;
       // Encerra o anterior antes de iniciar outro; o verde pode preemptar qualquer comando.
       const hadVoice = voices.size > 0;
       stopSound();
       const token = generation;
-      const guideSeconds = kind === 'hold' && ui.guide.checked ? Number(ui.duration.value) : 0;
+      const useClip = pattern === 'custom' || Boolean(clipPreview);
+      const slot = clipPreview || (kind === 'release' ? 'release' : 'hold');
+      const guideSeconds = kind === 'hold' && !useClip && ui.guide.checked ? Number(ui.duration.value) : 0;
       const frequency = kind === 'test' || preview ? draft : base;
-      const selectedPattern = kind === 'release' ? 'plain' : pattern;
+      const selectedPattern = useClip ? 'custom' : kind === 'release' ? 'plain' : pattern;
       const toneFrequency = frequency * (kind === 'release' ? 1.4 : 1);
-      command = { kind, token, preview, guideSeconds, start:0, holdStart:Infinity };
+      command = { kind, token, preview, clipPreview, guideSeconds, start:0, holdStart:Infinity };
       renderControls(); feedback('Preparando áudio…');
       try {
         await ensureAudio();
+        const clipBuffer = useClip ? await getClipBuffer(slot) : null;
         if (token !== generation || !command) return;
         if (document.hidden) { stopSound('Página inativa. Acione novamente para retomar.',true); return; }
         // Preparar o buffer antes de marcar o início, evitando atraso no primeiro pulso.
         if (selectedPattern === 'pulse') getPulseBuffer();
         const start = audioCtx.currentTime + (hadVoice ? FADE + .01 : .005);
-        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(toneFrequency,start);
+        const osc = useClip ? audioCtx.createBufferSource() : audioCtx.createOscillator(), gain = audioCtx.createGain();
+        if (useClip) {
+          osc.buffer = clipBuffer;
+          osc.loop = !clipPreview && kind !== 'release';
+        } else {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(toneFrequency,start);
+        }
         gain.gain.setValueAtTime(0,audioCtx.currentTime);
         osc.connect(gain); gain.connect(master);
         const v = { osc, gain, modSources:[], modNodes:[], segments:[], tail:1, disposed:false, retired:false };
@@ -403,7 +642,14 @@
           v.segments.push({ start:a,end:b,from,to });
         }
         let end = null;
-        if (kind === 'release') {
+        if (useClip) {
+          ramp(0,1,start,start + .005);
+          if (!osc.loop) {
+            end = start + clipBuffer.duration;
+            ramp(1,1,start + .005,end - .005);
+            ramp(1,0,end - .005,end); v.tail = 0;
+          }
+        } else if (kind === 'release') {
           // Dois pulsos: 250 ms cada; pausa silenciosa de 180 ms. Inclui ataque/saída.
           for (const offset of [0,.43]) {
             const t = start + offset;
@@ -425,13 +671,13 @@
         voices.add(v); voice = v;
         command.start = start; command.holdStart = start + guideSeconds;
         osc.start(start);
-        applyPattern(v,frequency,selectedPattern,start);
+        if (!useClip) applyPattern(v,frequency,selectedPattern,start);
         if (end !== null) osc.stop(end);
         if (kind === 'hold') { elapsed = 0; updateTimer(); }
         setPhase(kind === 'test' ? 'Testando' : kind === 'release' ? 'Liberando' : guideSeconds ? 'Inspirando' : 'Sustentando',kind === 'release' ? 'release' : 'active');
         $('inspiration-progress').max = guideSeconds || 1;
         renderControls(); tick();
-        feedback(kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
+        feedback(useClip ? `Áudio gravado de ${slot === 'hold' ? 'puxar' : 'soltar'} · ${osc.loop ? 'repetindo até você parar' : 'reproduzindo uma vez'}.` : kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
       } catch (error) {
         if (token === generation) { stopSound(); feedback(error.message || 'Falha ao iniciar áudio. Tente novamente.',true); }
       }
@@ -454,14 +700,15 @@
       });
       button.addEventListener('contextmenu',event => event.preventDefault());
     });
-    window.addEventListener('keydown',event => { if (event.key === 'Escape') stopSound('Som encerrado.'); });
-    ui.stop.addEventListener('click',() => stopSound('Som encerrado.'));
-    window.addEventListener('blur',() => stopSound('Página sem foco. Acione novamente para retomar.',true));
-    window.addEventListener('pagehide',() => stopSound(undefined,true));
-    document.addEventListener('visibilitychange',() => { if (document.hidden) stopSound('Página ocultada. Acione novamente para retomar.',true); });
+    function stopEverything(message,immediate = false) { cancelCapture(); stopSound(message,immediate); }
+    window.addEventListener('keydown',event => { if (event.key === 'Escape') stopEverything('Som e gravação encerrados.'); });
+    ui.stop.addEventListener('click',() => stopEverything('Som e gravação encerrados.'));
+    window.addEventListener('blur',() => { if (capture?.phase === 'recording') cancelCapture('Gravação interrompida ao perder o foco.'); stopSound('Página sem foco. Acione novamente para retomar.',true); });
+    window.addEventListener('pagehide',() => stopEverything(undefined,true));
+    document.addEventListener('visibilitychange',() => { if (document.hidden) stopEverything('Página ocultada. Acione novamente para retomar.',true); });
 
     function selectTab(tab) {
-      stopSound('Som encerrado ao trocar de aba.');
+      stopEverything('Som e gravação encerrados ao trocar de aba.');
       document.querySelector('.app').classList.toggle('operating',tab === $('tab-operate'));
       for (const button of [$('tab-adjust'),$('tab-operate')]) {
         const selected = button === tab;
@@ -496,12 +743,19 @@
     });
     ui.guide.addEventListener('change',renderControls);
     ui['sound-pattern'].addEventListener('change',() => {
-      pattern = ui['sound-pattern'].value;
-      updatePatternDescription(); renderControls();
-      try { localStorage.setItem(PATTERN_KEY,pattern); feedback(`Padrão salvo: ${PATTERNS[pattern]}. Teste os dois sinais antes de usar.`); }
-      catch (_) { feedback(`Padrão definido nesta sessão: ${PATTERNS[pattern]}.`); }
+      selectPattern(ui['sound-pattern'].value);
     });
+    for (const slot of ['hold','release']) {
+      $(`record-${slot}`).addEventListener('click',() => beginCapture(slot));
+      $(`listen-${slot}`).addEventListener('click',() => {
+        if (command?.clipPreview === slot) stopSound('Amostra encerrada.');
+        else startSound(slot === 'hold' ? 'test' : 'release',true,slot);
+      });
+      $(`delete-${slot}`).addEventListener('click',() => deleteClip(slot));
+    }
+    $('use-recordings').addEventListener('click',() => selectPattern('custom'));
     updateDraft(); renderControls(); updateTimer();
+    loadClips();
   })();
   </script>
 </body>
