@@ -12,10 +12,10 @@
     * { box-sizing:border-box; }
     html { background:var(--bg); overscroll-behavior:none; }
     body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--text); overscroll-behavior:none; }
-    button,input { font:inherit; }
-    button,input,label { touch-action:manipulation; }
+    button,input,select { font:inherit; }
+    button,input,select,label { touch-action:manipulation; }
     button { border:1px solid var(--line); border-radius:12px; min-height:48px; cursor:pointer; font-weight:700; color:var(--text); background:#292929; -webkit-tap-highlight-color:transparent; }
-    button:disabled,input:disabled { opacity:.48; cursor:not-allowed; }
+    button:disabled,input:disabled,select:disabled { opacity:.48; cursor:not-allowed; }
     :focus-visible { outline:3px solid #fff; outline-offset:4px; }
     button:not(:disabled):active { transform:translateY(1px); }
     [hidden] { display:none !important; }
@@ -52,6 +52,10 @@
     .presets button[aria-pressed="true"] { color:var(--amber); border-color:var(--amber); background:#342b18; }
     .test-button { width:100%; min-height:66px; background:#343434; border:1px solid #888; }
     .test-button.active { color:var(--ink); background:var(--amber); }
+    .release-preview { margin-top:10px; min-height:48px; border-color:var(--green); color:var(--green); }
+    .sound-selector { margin:16px 0; }
+    .sound-selector label { display:block; font-weight:700; margin-bottom:8px; }
+    .sound-selector select { width:100%; min-height:50px; padding:10px; border:1px solid #888; border-radius:10px; background:#292929; color:var(--text); }
     .save-button { width:100%; margin-top:10px; background:var(--text); color:var(--ink); }
     .row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 4px; }
     .row output { color:var(--amber); font-weight:700; white-space:nowrap; }
@@ -122,8 +126,19 @@
           <button data-config data-frequency="300" aria-pressed="false">300 Hz</button>
           <button data-config data-frequency="400" aria-pressed="false">400 Hz</button>
         </div>
+        <div class="sound-selector">
+          <label for="sound-pattern">Som de puxar e segurar</label>
+          <select id="sound-pattern" data-config aria-describedby="pattern-help">
+            <option value="siren">Sirene suave</option>
+            <option value="pulse">Pulsos espaçados</option>
+            <option value="plain">Tom contínuo</option>
+          </select>
+          <p id="pattern-help" class="help">Sirene com variação suave ao redor da frequência selecionada.</p>
+        </div>
         <button id="test" class="test-button" aria-pressed="false" aria-describedby="test-help">Testar som</button>
-        <p id="test-help" class="help">Um toque inicia o tom contínuo. Toque novamente para parar.</p>
+        <p id="test-help" class="help">Um toque inicia o padrão escolhido. Toque novamente para parar.</p>
+        <button id="test-release" class="test-button release-preview" aria-describedby="release-help">Testar liberação · bip-bip</button>
+        <p id="release-help" class="help">Compare o bip-bip com o som de puxar, usando a frequência selecionada. Confirme que a paciente distingue os dois.</p>
         <button id="save" data-config class="save-button">Salvar frequência base</button>
         <p id="save-status" class="help">Base atual: 220 Hz. Salve após confirmar a percepção.</p>
       </div>
@@ -144,19 +159,19 @@
         </div>
         <p class="help">Contagem da sustentação. O encerramento é manual.</p>
       </div>
-      <button id="hold" class="command hold" aria-pressed="false" aria-describedby="mode-note"><strong>PUXAR E SEGURAR</strong><small id="hold-hint">Toque para iniciar o tom contínuo</small></button>
+      <button id="hold" class="command hold" aria-pressed="false" aria-describedby="mode-note"><strong>PUXAR E SEGURAR</strong><small id="hold-hint">Toque para iniciar · Sirene suave</small></button>
       <button id="release" class="command release-button"><strong>SOLTAR / RESPIRAR</strong><small>Bip-bip · sinal de liberação</small></button>
       <p id="mode-note" class="help mode-note">Toque novamente no âmbar para silenciar. Use o verde para sinalizar a liberação.</p>
       <div class="panel operation-config">
         <h2 class="section-title">Inspiração</h2>
         <div class="row"><label class="check-label" for="guide"><input id="guide" data-config type="checkbox">Guia de inspiração</label></div>
-        <p class="help">O volume sobe até o tom contínuo. O cronômetro começa depois da inspiração.</p>
+        <p class="help">O volume do padrão escolhido sobe gradualmente. O cronômetro começa depois da inspiração.</p>
         <div id="duration-controls" hidden>
           <div class="row"><label for="duration">Duração da subida</label><output id="duration-display" for="duration">3 s</output></div>
           <input id="duration" data-config type="range" min="1" max="6" step="1" value="3" aria-valuetext="3 segundos">
         </div>
       </div>
-      <p class="help notice">Os sinais e os tempos devem seguir a orientação da equipe. Confirme a percepção dos dois sinais pela paciente; a frequência de liberação é 1,4 × a base.</p>
+      <p class="help notice">Os sinais e os tempos devem seguir a orientação da equipe. Confirme que a paciente reconhece os dois padrões nas condições de uso do interfone. A liberação é sempre o bip-bip, em 1,4 × a base.</p>
     </section>
     <p id="feedback" class="feedback" role="status" aria-live="polite" aria-atomic="true">Pronto para ajustar. O som só começa com sua ação.</p>
     <span id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
@@ -168,10 +183,12 @@
   (() => {
     'use strict';
     const $ = id => document.getElementById(id);
-    const ui = Object.fromEntries(['frequency','volume','guide','duration','test','hold','release','save','stop','phase','timer','feedback'].map(id => [id,$(id)]));
+    const ui = Object.fromEntries(['frequency','volume','guide','duration','test','test-release','sound-pattern','hold','release','save','stop','phase','timer','feedback'].map(id => [id,$(id)]));
     const STORAGE_KEY = 'rm-tone-base-v1';
+    const PATTERN_KEY = 'rm-tone-pattern-v1';
+    const PATTERNS = { siren:'Sirene suave', pulse:'Pulsos espaçados', plain:'Tom contínuo' };
     const ATTACK = .03, FADE = .05, MASTER_MAX = .7;
-    let base = 220, draft = 220, audioCtx = null, master = null;
+    let base = 220, draft = 220, pattern = 'siren', audioCtx = null, master = null, pulseBuffer = null;
     let generation = 0, command = null, voice = null, frame = 0, elapsed = 0;
     const voices = new Set();
 
@@ -181,7 +198,12 @@
       const value = Number(stored);
       if (stored !== null && Number.isInteger(value) && value >= 100 && value <= 800) base = draft = value;
     } catch (_) { /* Armazenamento privado/bloqueado: continuar em memória. */ }
+    try {
+      const storedPattern = localStorage.getItem(PATTERN_KEY);
+      if (Object.hasOwn(PATTERNS,storedPattern)) pattern = storedPattern;
+    } catch (_) { /* Continuar com o padrão desta sessão. */ }
     ui.frequency.value = draft;
+    ui['sound-pattern'].value = pattern;
     function feedback(message, error = false) { ui.feedback.textContent = message; ui.feedback.classList.toggle('error',error); }
     function updateDraft() {
       draft = Number(ui.frequency.value);
@@ -190,6 +212,17 @@
       document.querySelectorAll('[data-frequency]').forEach(button => button.setAttribute('aria-pressed',String(Number(button.dataset.frequency) === draft)));
       $('base-display').textContent = `${base} Hz`;
       $('save-status').textContent = `Base atual: ${base} Hz. ${draft === base ? 'Salve após confirmar a percepção.' : 'A seleção ainda não foi salva.'}`;
+      updatePatternDescription();
+    }
+    function sirenRange(frequency) {
+      return { low:Math.max(100,frequency * .85), high:Math.min(800,frequency * 1.15) };
+    }
+    function updatePatternDescription() {
+      const { low,high } = sirenRange(draft);
+      $('pattern-help').textContent = pattern === 'siren'
+        ? `Sobe e desce entre ${Math.round(low)} e ${Math.round(high)} Hz, em ciclos de 2 segundos. A frequência base continua sendo ${draft} Hz.`
+        : pattern === 'pulse' ? 'Um toque de 0,4 s, seguido de 0,5 s de silêncio, repetindo na frequência selecionada.'
+        : 'Um tom constante na frequência selecionada.';
     }
     function setPhase(text, kind = '') {
       if (ui.phase.textContent !== text) $('announcer').textContent = text;
@@ -214,7 +247,8 @@
       ui.release.classList.toggle('active',Boolean(command && command.kind === 'release'));
       ui.hold.setAttribute('aria-pressed',String(holding));
       ui.hold.setAttribute('aria-busy',String(Boolean(command && command.kind === 'hold' && !voice)));
-      $('hold-hint').textContent = holding ? 'Toque novamente para silenciar' : 'Toque para iniciar o tom contínuo';
+      $('hold-hint').textContent = holding ? 'Toque novamente para silenciar' : `Toque para iniciar · ${PATTERNS[pattern]}`;
+      ui['test-release'].classList.toggle('active',Boolean(command && command.kind === 'release' && command.preview));
       $('duration-controls').hidden = !ui.guide.checked;
     }
 
@@ -253,7 +287,10 @@
     function dispose(v) {
       if (v.disposed) return;
       v.disposed = true;
-      v.osc.disconnect(); v.gain.disconnect(); voices.delete(v);
+      v.osc.disconnect(); v.gain.disconnect();
+      v.modSources.forEach(source => source.disconnect());
+      v.modNodes.forEach(node => node.disconnect());
+      voices.delete(v);
     }
     function retire(v, immediate = false) {
       if (v.disposed) return;
@@ -266,6 +303,7 @@
       if (!immediate) gain.linearRampToValueAtTime(0,now + FADE);
       // Substitui também uma parada previamente agendada, cancelando o restante do bip-bip.
       v.osc.stop(now + (immediate ? 0 : FADE));
+      v.modSources.forEach(source => source.stop(now + (immediate ? 0 : FADE)));
       v.retired = true;
       if (immediate) dispose(v);
     }
@@ -303,25 +341,63 @@
       }
       frame = requestAnimationFrame(tick);
     }
-    async function startSound(kind) {
+    // Modulação nativa, sem setInterval: continua sincronizada pelo relógio do áudio.
+    // Os moduladores são encerrados junto com o oscilador principal, inclusive ao sair.
+    function getPulseBuffer() {
+      if (!pulseBuffer) {
+        pulseBuffer = audioCtx.createBuffer(1,Math.round(audioCtx.sampleRate * .9),audioCtx.sampleRate);
+        const samples = pulseBuffer.getChannelData(0);
+        for (let i = 0; i < samples.length; i++) {
+          const t = i / audioCtx.sampleRate;
+          samples[i] = t < ATTACK ? t / ATTACK : t < .35 ? 1 : t < .4 ? (.4 - t) / FADE : 0;
+        }
+      }
+      return pulseBuffer;
+    }
+    function applyPattern(v,frequency,selectedPattern,start) {
+      if (selectedPattern === 'siren') {
+        const { low,high } = sirenRange(frequency);
+        const lfo = audioCtx.createOscillator(), depth = audioCtx.createGain();
+        lfo.type = 'sine'; lfo.frequency.value = .5;
+        depth.gain.value = (high - low) / 2;
+        v.osc.frequency.setValueAtTime((high + low) / 2,start);
+        lfo.connect(depth); depth.connect(v.osc.frequency);
+        v.modNodes.push(depth);
+        lfo.start(start); v.modSources.push(lfo);
+      } else if (selectedPattern === 'pulse') {
+        const gate = audioCtx.createGain(), pulse = audioCtx.createBufferSource();
+        gate.gain.value = 0;
+        pulse.buffer = getPulseBuffer(); pulse.loop = true;
+        pulse.connect(gate.gain);
+        v.gain.disconnect(); v.gain.connect(gate); gate.connect(master);
+        v.modNodes.push(gate);
+        pulse.start(start); v.modSources.push(pulse);
+      }
+    }
+    async function startSound(kind,preview = false) {
       // Encerra o anterior antes de iniciar outro; o verde pode preemptar qualquer comando.
       const hadVoice = voices.size > 0;
       stopSound();
       const token = generation;
       const guideSeconds = kind === 'hold' && ui.guide.checked ? Number(ui.duration.value) : 0;
-      command = { kind, token, guideSeconds, start:0, holdStart:Infinity };
+      const frequency = kind === 'test' || preview ? draft : base;
+      const selectedPattern = kind === 'release' ? 'plain' : pattern;
+      const toneFrequency = frequency * (kind === 'release' ? 1.4 : 1);
+      command = { kind, token, preview, guideSeconds, start:0, holdStart:Infinity };
       renderControls(); feedback('Preparando áudio…');
       try {
         await ensureAudio();
         if (token !== generation || !command) return;
         if (document.hidden) { stopSound('Página inativa. Acione novamente para retomar.',true); return; }
+        // Preparar o buffer antes de marcar o início, evitando atraso no primeiro pulso.
+        if (selectedPattern === 'pulse') getPulseBuffer();
         const start = audioCtx.currentTime + (hadVoice ? FADE + .01 : .005);
         const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(kind === 'test' ? draft : base * (kind === 'release' ? 1.4 : 1),start);
+        osc.frequency.setValueAtTime(toneFrequency,start);
         gain.gain.setValueAtTime(0,audioCtx.currentTime);
         osc.connect(gain); gain.connect(master);
-        const v = { osc, gain, segments:[], tail:1, disposed:false, retired:false };
+        const v = { osc, gain, modSources:[], modNodes:[], segments:[], tail:1, disposed:false, retired:false };
         function ramp(from,to,a,b) {
           gain.gain.setValueAtTime(from,a); gain.gain.linearRampToValueAtTime(to,b);
           v.segments.push({ start:a,end:b,from,to });
@@ -349,12 +425,13 @@
         voices.add(v); voice = v;
         command.start = start; command.holdStart = start + guideSeconds;
         osc.start(start);
+        applyPattern(v,frequency,selectedPattern,start);
         if (end !== null) osc.stop(end);
         if (kind === 'hold') { elapsed = 0; updateTimer(); }
         setPhase(kind === 'test' ? 'Testando' : kind === 'release' ? 'Liberando' : guideSeconds ? 'Inspirando' : 'Sustentando',kind === 'release' ? 'release' : 'active');
         $('inspiration-progress').max = guideSeconds || 1;
         renderControls(); tick();
-        feedback(kind === 'release' ? `Bip-bip de liberação · ${(base * 1.4).toFixed(0)} Hz.` : kind === 'test' ? `Teste · ${draft} Hz. Toque novamente para silenciar.` : 'Comando ativo. Toque novamente no âmbar para silenciar ou no verde para liberar.');
+        feedback(kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
       } catch (error) {
         if (token === generation) { stopSound(); feedback(error.message || 'Falha ao iniciar áudio. Tente novamente.',true); }
       }
@@ -367,9 +444,10 @@
       else startSound(kind);
     }
     ui.test.addEventListener('click',() => toggleSound('test'));
+    ui['test-release'].addEventListener('click',() => startSound('release',true));
     ui.hold.addEventListener('click',() => toggleSound('hold'));
     ui.release.addEventListener('click',() => startSound('release'));
-    [ui.test,ui.hold,ui.release].forEach(button => {
+    [ui.test,ui['test-release'],ui.hold,ui.release].forEach(button => {
       // Evitar alternâncias repetidas se Enter ficar pressionado.
       button.addEventListener('keydown',event => {
         if (event.repeat && (event.key === 'Enter' || event.key === ' ')) event.preventDefault();
@@ -417,6 +495,12 @@
       ui.duration.setAttribute('aria-valuetext',`${ui.duration.value} segundos`);
     });
     ui.guide.addEventListener('change',renderControls);
+    ui['sound-pattern'].addEventListener('change',() => {
+      pattern = ui['sound-pattern'].value;
+      updatePatternDescription(); renderControls();
+      try { localStorage.setItem(PATTERN_KEY,pattern); feedback(`Padrão salvo: ${PATTERNS[pattern]}. Teste os dois sinais antes de usar.`); }
+      catch (_) { feedback(`Padrão definido nesta sessão: ${PATTERNS[pattern]}.`); }
+    });
     updateDraft(); renderControls(); updateTimer();
   })();
   </script>

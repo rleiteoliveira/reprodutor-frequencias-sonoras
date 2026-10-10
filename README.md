@@ -6,16 +6,26 @@ Aplicação responsiva para gerar sinais sonoros de comandos respiratórios, com
 
 ## Uso
 
-1. Na aba **Ajuste**, selecione uma frequência entre 100 e 800 Hz ou use os presets. Toque em **Testar som** para iniciar o tom contínuo e em **Parar teste** para encerrar.
+1. Na aba **Ajuste**, selecione uma frequência entre 100 e 800 Hz ou use os presets. Escolha o **Som de puxar e segurar**. Toque em **Testar som** para iniciar o padrão e em **Parar teste** para encerrar.
 2. Confirme a percepção pelo caminho de áudio que será usado e clique em **Salvar frequência base**.
 3. Na aba **Operação**, o guia opcional sobe o volume durante 1 a 6 segundos antes da sustentação.
-4. Um toque em **PUXAR E SEGURAR** inicia o tom base contínuo. Outro toque no mesmo botão silencia. O cronômetro começa na sustentação.
+4. Um toque em **PUXAR E SEGURAR** inicia o padrão escolhido, repetindo até outro toque no mesmo botão ou outro comando. O cronômetro começa na sustentação.
 5. Um toque em **SOLTAR / RESPIRAR** interrompe o tom anterior e reproduz a sequência de dois pulsos em 1,4 vezes a frequência base. Tocar novamente reinicia a sequência.
 6. **Parar som** ou a tecla **Escape** interrompe a reprodução.
 
 Todos os comandos funcionam por clique ou toque, sem manter o botão pressionado. No teclado, use **Espaço** ou **Enter** com o botão em foco. O áudio é desbloqueado no clique; quando disponível, a sessão de áudio é configurada como reprodução de mídia no iOS. Sair da página ou perder o foco encerra o som; retornar não retoma a reprodução automaticamente.
 
-A frequência confirmada fica salva no navegador quando o armazenamento local está disponível. A aplicação não coleta nem transmite dados da paciente.
+A frequência confirmada e o padrão escolhido ficam salvos no navegador quando o armazenamento local está disponível. A aplicação não coleta nem transmite dados da paciente.
+
+## Padrões sonoros
+
+- **Sirene suave** (opção inicial): varia a frequência em até 15% acima e abaixo da base, em ciclos suaves de 2 segundos. A variação fica entre 100 e 800 Hz; nos extremos, a faixa é limitada. Não aumenta o volume definido.
+- **Pulsos espaçados**: um toque de 0,4 segundo seguido de 0,5 segundo de silêncio, repetindo na frequência base. Os ataques e saídas são suaves.
+- **Tom contínuo**: sinal constante na frequência base.
+
+O botão **Testar liberação · bip-bip** permite comparar, na aba Ajuste, o sinal de soltar com o de puxar usando a frequência selecionada. A operação usa a frequência base salva. O sinal de liberação permanece uma sequência finita de dois pulsos de 0,25 segundo, separados por 0,18 segundo, em 1,4 vezes a frequência base, para ter um padrão próprio.
+
+Esses padrões mudam somente o som dos comandos manuais. Não automatizam a rotina respiratória. A distinção em meio ao ruído da RM precisa ser confirmada com a paciente e a equipe pelo interfone usado no exame.
 
 ## Executar localmente
 
