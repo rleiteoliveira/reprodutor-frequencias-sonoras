@@ -155,7 +155,7 @@
       <div class="panel" id="recordings-panel">
         <h2 class="section-title">Áudios personalizados</h2>
         <p class="help">Grave pelo microfone do celular, com até 30 segundos por áudio. A e B ficam neste navegador, sem envio à internet.</p>
-        <p class="help" id="voice-help"><strong>Voz filtrada:</strong> realça a faixa ao redor da frequência selecionada, sem mudar a velocidade ou deslocar a altura da voz. A fala permanece natural em 1,0×. A filtragem pode remover partes importantes da fala; compare com o original e confirme os comandos com a paciente e a equipe pelo interfone.</p>
+        <p class="help" id="voice-help"><strong>Voz filtrada:</strong> realça a faixa ao redor da frequência selecionada, sem mudar a velocidade ou deslocar a altura da voz. O volume é compensado em relação ao original, com controle dos picos. A filtragem pode remover partes importantes da fala; compare com o original e confirme os comandos com a paciente e a equipe pelo interfone.</p>
         <div class="row"><label for="speech-speed"><strong>Velocidade da Fala</strong></label><output id="speech-speed-display" for="speech-speed">1,00×</output></div>
         <input id="speech-speed" data-config type="range" min="0.8" max="1" step="0.01" value="1" aria-valuetext="1 vez, velocidade natural" aria-describedby="speech-speed-help">
         <div class="range-labels" aria-hidden="true"><span>0,8× · mais pausada</span><span>1,0× · natural</span></div>
@@ -594,17 +594,56 @@
       }
       return {buffer,speed,filtered:treatments[slot] === 'filtered' && !forceOriginal};
     }
-    function connectVoiceFilters(source,destination,frequency,start) {
+    function createVoiceFilters(context,frequency,start = 0) {
       const {low,high} = filterRange(frequency);
-      const highpass = audioCtx.createBiquadFilter(), peaking = audioCtx.createBiquadFilter(), lowpass = audioCtx.createBiquadFilter();
+      const highpass = context.createBiquadFilter(), peaking = context.createBiquadFilter(), lowpass = context.createBiquadFilter();
       highpass.type = 'highpass'; highpass.frequency.setValueAtTime(low,start); highpass.Q.value = Math.SQRT1_2;
       peaking.type = 'peaking'; peaking.frequency.setValueAtTime(frequency,start); peaking.Q.value = 2; peaking.gain.value = 15;
       lowpass.type = 'lowpass'; lowpass.frequency.setValueAtTime(high,start); lowpass.Q.value = Math.SQRT1_2;
-      // Margem fixa para o boost central não provocar saturação digital. Não
-      // modifica frequência/tempo; o peaking continua com ganho relativo +15 dB.
-      const headroom = audioCtx.createGain(); headroom.gain.value = 10 ** (-18 / 20);
-      source.connect(highpass); highpass.connect(peaking); peaking.connect(lowpass); lowpass.connect(headroom); headroom.connect(destination);
-      return [highpass,peaking,lowpass,headroom];
+      return [highpass,peaking,lowpass];
+    }
+    function signalLevel(buffer) {
+      let energy = 0, peak = 0;
+      for (let c = 0; c < buffer.numberOfChannels; c++) {
+        const samples = buffer.getChannelData(c);
+        for (const value of samples) { energy += value * value; peak = Math.max(peak,Math.abs(value)); }
+      }
+      return {rms:Math.sqrt(energy / (buffer.length * buffer.numberOfChannels)),peak};
+    }
+    async function getFilterCompensation(slot,buffer,frequency,token) {
+      const clip = clips[slot];
+      if (clip.leveling?.buffer === buffer && clip.leveling.frequency === frequency) return clip.leveling;
+      const Context = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!Context) throw new Error('Este navegador não permite compensar o volume. Use a voz original ou abra em um navegador compatível.');
+      // Mede o mesmo filtro sem tocar som, subir arquivos ou modificar o original.
+      // Apenas o ganho é reutilizado na reprodução; a duração não é alterada.
+      const offline = new Context(buffer.numberOfChannels,buffer.length,buffer.sampleRate);
+      const source = offline.createBufferSource(), filters = createVoiceFilters(offline,frequency);
+      source.buffer = buffer; source.playbackRate.value = 1.0;
+      source.connect(filters[0]); filters[0].connect(filters[1]); filters[1].connect(filters[2]); filters[2].connect(offline.destination);
+      source.start();
+      const rendered = await offline.startRendering();
+      if (token !== generation) throw new Error('Preparação cancelada.');
+      const original = signalLevel(buffer), filtered = signalLevel(rendered);
+      // Aproxima o nível médio do original, com ganho máximo +18 dB (8×).
+      // Não amplifica silêncio e reserva margem de pico no sinal medido.
+      const requested = filtered.rms > .0001 ? original.rms / filtered.rms : 1;
+      const peakLimit = filtered.peak > 0 ? .9 / filtered.peak : 1;
+      const gain = Math.max(0,Math.min(requested,8,peakLimit));
+      const profile = {buffer,frequency,gain,weak:filtered.rms <= .0001 && original.rms > .0001 || requested > 8};
+      clip.leveling = profile;
+      return profile;
+    }
+    function connectVoiceFilters(source,destination,frequency,start,compensation) {
+      const [highpass,peaking,lowpass] = createVoiceFilters(audioCtx,frequency,start);
+      const leveling = audioCtx.createGain(); leveling.gain.value = compensation.gain;
+      // Proteção instantânea adicional para picos em reinícios/loops. A curva é
+      // linear até ±0,95; a compensação medida normalmente mantém o pico ≤0,9.
+      const limiter = audioCtx.createWaveShaper(), curve = new Float32Array(4097);
+      for (let i = 0; i < curve.length; i++) curve[i] = Math.max(-.95,Math.min(.95,2 * i / (curve.length - 1) - 1));
+      limiter.curve = curve;
+      source.connect(highpass); highpass.connect(peaking); peaking.connect(lowpass); lowpass.connect(leveling); leveling.connect(limiter); limiter.connect(destination);
+      return [highpass,peaking,lowpass,leveling,limiter];
     }
 
     // Um único contexto. O click ocorre após o toque terminar, com ativação do usuário
@@ -747,6 +786,7 @@
         await ensureAudio();
         const clipPlayback = useClip ? await getClipPlayback(slot,token,forceOriginal) : null;
         const clipBuffer = clipPlayback?.buffer;
+        const compensation = clipPlayback?.filtered ? await getFilterCompensation(slot,clipBuffer,frequency,token) : null;
         if (token !== generation || !command) return;
         if (document.hidden) { stopSound('Página inativa. Acione novamente para retomar.',true); return; }
         if (audioCtx.state !== 'running') { stopSound('Áudio interrompido. Acione novamente para retomar.',true); return; }
@@ -763,7 +803,7 @@
           osc.frequency.setValueAtTime(toneFrequency,start);
         }
         gain.gain.setValueAtTime(0,audioCtx.currentTime);
-        const filterNodes = useClip && clipPlayback.filtered ? connectVoiceFilters(osc,gain,frequency,start) : [];
+        const filterNodes = useClip && clipPlayback.filtered ? connectVoiceFilters(osc,gain,frequency,start,compensation) : [];
         if (!filterNodes.length) osc.connect(gain);
         gain.connect(master);
         const v = { osc, gain, modSources:[], modNodes:filterNodes, segments:[], tail:1, disposed:false, retired:false };
@@ -807,7 +847,7 @@
         setPhase(kind === 'test' ? 'Testando' : kind === 'release' ? 'Liberando' : guideSeconds ? 'Inspirando' : 'Sustentando',kind === 'release' ? 'release' : 'active');
         $('inspiration-progress').max = guideSeconds || 1;
         renderControls(); tick();
-        feedback(useClip ? `Áudio ${slot === 'hold' ? 'A' : 'B'} · ${osc.loop ? 'repetindo até você parar' : 'reproduzindo uma vez'} · fala ${speechSpeedLabel(clipPlayback.speed)}. ${clipPlayback.filtered ? filterDescription(frequency) : 'Voz sem filtros de frequência.'}` : kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
+        feedback(useClip ? `Áudio ${slot === 'hold' ? 'A' : 'B'} · ${osc.loop ? 'repetindo até você parar' : 'reproduzindo uma vez'} · fala ${speechSpeedLabel(clipPlayback.speed)}. ${clipPlayback.filtered ? `${filterDescription(frequency)} Volume compensado, com controle de picos.${compensation.weak ? ' A faixa preserva pouca voz; teste outra frequência ou a voz original.' : ''}` : 'Voz sem filtros de frequência.'}` : kind === 'release' ? `Bip-bip de liberação · ${toneFrequency.toFixed(0)} Hz.` : kind === 'test' ? `${PATTERNS[selectedPattern]} · base ${frequency} Hz. Toque novamente para silenciar.` : `Comando ativo · ${PATTERNS[selectedPattern]}. Toque novamente no âmbar para silenciar ou no verde para liberar.`);
       } catch (error) {
         if (token === generation) { stopSound(); feedback(error.message || 'Falha ao iniciar áudio. Tente novamente.',true); }
       }
